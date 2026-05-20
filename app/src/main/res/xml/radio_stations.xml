@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<radioStations>
+    <station name="Radio Chemnitz" description="Lokales Radio Chemnitz" streamUrl="http://web.radio.radiochemnitz.de/radiochemnitz-live/stream/mp3" />
+
+    <station name="Deutschlandfunk" description="Nachrichten und Hintergrund" streamUrl="https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3?aggregator=web" />
+    <station name="Deutschlandfunk Kultur" description="Kultur, Musik und Gesellschaft" streamUrl="https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3?aggregator=web" />
+    <station name="Deutschlandfunk Nova" description="Wissen, Pop und junge Themen" streamUrl="https://st03.sslstream.dlf.de/dlf/03/128/mp3/stream.mp3?aggregator=web" />
+
+    <station name="Bayern 1 Oberbayern" description="BR Livestream MP3 128" streamUrl="https://streams.br.de/bayern1obb_2.m3u" />
+    <station name="Bayern 2" description="BR Livestream MP3 128" streamUrl="https://streams.br.de/bayern2_2.m3u" />
+    <station name="Bayern 3" description="BR Livestream MP3 128" streamUrl="https://streams.br.de/bayern3_2.m3u" />
+    <station name="BR Klassik" description="Klassik, Jazz und Filmmusik" streamUrl="https://streams.br.de/br-klassik_2.m3u" />
+    <station name="BR24" description="Nachrichten und Information" streamUrl="https://streams.br.de/br24_2.m3u" />
+    <station name="BR Heimat" description="Volksmusik und bayerische Geschichten" streamUrl="https://streams.br.de/brheimat_2.m3u" />
+    <station name="PULS" description="Junges BR-Programm" streamUrl="https://streams.br.de/puls_2.m3u" />
+
+    <station name="Radio BOB! 2000er Rock" description="Rockstream MP3 128" streamUrl="https://streams.radiobob.de/2000er/mp3-128/streams.radiobob.de/" />
+    <station name="Radio BOB! 70er Rock" description="Rockstream MP3 128" streamUrl="https://streams.radiobob.de/70errock/mp3-128/streams.radiobob.de/" />
+    <station name="Radio BOB! 80er Rock" description="Rockstream AAC 64" streamUrl="http://streams.radiobob.de/80errockrwi/aac-64/streams.radiobob.de/" />
+    <station name="Radio BOB! Classic Rock" description="Rockstream MP3 128" streamUrl="https://streams.radiobob.de/classicrock/mp3-128/streams.radiobob.de/" />
+    <station name="Radio BOB! Metal" description="Metalstream MP3 128" streamUrl="https://streams.radiobob.de/metal/mp3-128/streams.radiobob.de/" />
+    <station name="Radio BOB! Alternative Rock" description="Alternative Rock MP3 128" streamUrl="https://streams.radiobob.de/alternativerock/mp3-128/streams.radiobob.de/" />
+    <station name="Radio BOB! Punk" description="Punkstream MP3 128" streamUrl="https://streams.radiobob.de/punk/mp3-128/streams.radiobob.de/" />
+
+    <station name="ENERGY Acoustic Hits" description="Acoustic Hits" streamUrl="http://nrj.de/acoustic" />
+    <station name="ENERGY Berlin" description="Berlin Livestream" streamUrl="http://nrj.de/berlin" />
+    <station name="ENERGY Bremen" description="Bremen Livestream" streamUrl="http://nrj.de/bremen" />
+    <station name="ENERGY Dance" description="Dance Livestream" streamUrl="http://nrj.de/dance" />
+    <station name="ENERGY 80er Hits" description="80er Hits" streamUrl="http://nrj.de/hits80" />
+    <station name="ENERGY 90er Hits" description="90er Hits" streamUrl="http://nrj.de/hits90" />
+    <station name="ENERGY 2000er Hits" description="2000er Hits" streamUrl="http://nrj.de/hits2000" />
+    <station name="ENERGY Sachsen" description="Sachsen Livestream" streamUrl="http://nrj.de/sachsen" />
+</radioStations>

@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+
+# Local machine config
+local.properties
+*.local
+
+# Android generated outputs
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.aab
+*.aar
+*.dex
+*.hprof
+
+# Signing / credentials
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+secrets.properties
+
+# Logs
+*.log
+
+# Test / coverage output
+coverage/
+*.ec
+/docu/*
