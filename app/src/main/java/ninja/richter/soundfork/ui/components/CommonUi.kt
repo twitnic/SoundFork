@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ninja.richter.soundfork.data.NowPlayingState
@@ -48,54 +49,54 @@ fun SoundForkDrawer(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "SoundFork",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = speakerName ?: "Verbundener Lautsprecher",
+                text = speakerName ?: stringResource(R.string.connected_speaker),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             NavigationDrawerItem(
-                label = { Text("Radio") },
+                label = { Text(stringResource(R.string.nav_radio)) },
                 selected = selectedPage == SoundForkDevicePage.RADIO,
                 onClick = onOpenRadio
             )
             NavigationDrawerItem(
-                label = { Text("Gerät") },
+                label = { Text(stringResource(R.string.nav_device)) },
                 selected = selectedPage == SoundForkDevicePage.DEVICE,
                 onClick = onOpenDevice
             )
             NavigationDrawerItem(
-                label = { Text("Quelle") },
+                label = { Text(stringResource(R.string.nav_source)) },
                 selected = selectedPage == SoundForkDevicePage.SOURCE,
                 onClick = onOpenSource
             )
             NavigationDrawerItem(
-                label = { Text("Presets") },
+                label = { Text(stringResource(R.string.nav_presets)) },
                 selected = selectedPage == SoundForkDevicePage.PRESETS,
                 onClick = onOpenPresets
             )
             NavigationDrawerItem(
-                label = { Text("Recents") },
+                label = { Text(stringResource(R.string.nav_recents)) },
                 selected = selectedPage == SoundForkDevicePage.RECENTS,
                 onClick = onOpenRecents
             )
             NavigationDrawerItem(
-                label = { Text("Zonen") },
+                label = { Text(stringResource(R.string.nav_zones)) },
                 selected = selectedPage == SoundForkDevicePage.ZONES,
                 onClick = onOpenZones
             )
             NavigationDrawerItem(
-                label = { Text("Debug") },
+                label = { Text(stringResource(R.string.nav_debug)) },
                 selected = selectedPage == SoundForkDevicePage.DEBUG,
                 onClick = onOpenDebug
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             NavigationDrawerItem(
-                label = { Text("Lautsprecher suchen") },
+                label = { Text(stringResource(R.string.nav_search_speaker)) },
                 selected = false,
                 onClick = onOpenDiscovery
             )
@@ -112,19 +113,28 @@ fun MiniPlayerBar(
     enabled: Boolean,
     onKey: (String) -> Unit
 ) {
+    val bufferingText = stringResource(R.string.buffering)
+    val playingText = stringResource(R.string.playing)
+    val pausedText = stringResource(R.string.paused)
+    val stoppedText = stringResource(R.string.stopped)
     val title = station?.name
         ?: nowPlaying?.stationName?.takeIf { it.isUsefulMiniPlayerText() }
         ?: nowPlaying?.track?.takeIf { it.isUsefulMiniPlayerText() }
         ?: nowPlaying?.location?.toMiniPlayerStreamHost()
-        ?: "Kein Sender aktiv"
+        ?: stringResource(R.string.no_station_active)
     val detail = listOfNotNull(
         status?.takeIf { it.isNotBlank() },
-        nowPlaying?.playStatus?.toMiniPlayerPlayStatus(),
+        nowPlaying?.playStatus?.toMiniPlayerPlayStatus(
+            bufferingText = bufferingText,
+            playingText = playingText,
+            pausedText = pausedText,
+            stoppedText = stoppedText
+        ),
         station?.description?.takeIf { it.isNotBlank() },
         nowPlaying?.streamType?.takeIf { it.isUsefulMiniPlayerText() }?.replace('_', ' '),
         nowPlaying?.location?.toMiniPlayerStreamHost()
     ).distinct().joinToString(" | ").ifBlank {
-        "Wähle einen Sender aus der Liste"
+        stringResource(R.string.choose_station_from_list)
     }
     Surface(
         modifier = Modifier
@@ -212,13 +222,18 @@ private fun String.isUsefulMiniPlayerText(): Boolean {
         normalized != "UNKNOWN"
 }
 
-private fun String.toMiniPlayerPlayStatus(): String? {
+private fun String.toMiniPlayerPlayStatus(
+    bufferingText: String,
+    playingText: String,
+    pausedText: String,
+    stoppedText: String
+): String? {
     val normalized = trim().uppercase()
     return when {
-        normalized.contains("BUFFER") -> "Puffert"
-        normalized.contains("PLAY") -> "Läuft"
-        normalized.contains("PAUSE") -> "Pausiert"
-        normalized.contains("STOP") -> "Gestoppt"
+        normalized.contains("BUFFER") -> bufferingText
+        normalized.contains("PLAY") -> playingText
+        normalized.contains("PAUSE") -> pausedText
+        normalized.contains("STOP") -> stoppedText
         normalized.isBlank() -> null
         else -> trim()
     }

@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,14 +48,14 @@ fun PresetListCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Gespeicherte Presets",
+                text = stringResource(R.string.saved_presets),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
 
             if (presets.isEmpty()) {
                 Text(
-                    text = "Der Lautsprecher liefert aktuell keine Presets in /presets. Die sechs Speicherplaetze koennen trotzdem per Taste belegt werden.",
+                    text = stringResource(R.string.no_presets),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -132,7 +133,7 @@ fun PresetRow(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = preset?.name ?: "Preset $presetId",
+                    text = preset?.name ?: stringResource(R.string.preset_name, presetId),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -140,7 +141,7 @@ fun PresetRow(
                     text = listOfNotNull(
                         preset?.source?.takeIf { it.isNotBlank() },
                         preset?.sourceAccount?.takeIf { it.isNotBlank() }
-                    ).joinToString(" | ").ifBlank { "Nicht belegt oder nicht vom Lautsprecher gemeldet" },
+                    ).joinToString(" | ").ifBlank { stringResource(R.string.preset_empty) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -178,14 +179,14 @@ fun PresetRow(
                 onClick = { onPlayPreset(preset, presetId) },
                 enabled = enabled
             ) {
-                Text("Abspielen")
+                Text(stringResource(R.string.play))
             }
             OutlinedButton(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = { onSavePreset(presetId) },
                 enabled = enabled
             ) {
-                Text("Aktuellen Stream speichern")
+                Text(stringResource(R.string.save_current_stream))
             }
         }
     }
@@ -209,13 +210,13 @@ fun BoseRecentsCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Bose Recents",
+                text = stringResource(R.string.bose_recents),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             if (recents.isEmpty()) {
                 Text(
-                    text = "Der Lautsprecher liefert aktuell keine Eintraege in /recents.",
+                    text = stringResource(R.string.no_recents),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -284,7 +285,7 @@ private fun BoseRecentRow(
                 Text(
                     text = recent.name?.takeIf { it.isNotBlank() }
                         ?: recent.location?.takeIf { it.isNotBlank() }
-                        ?: "Recent",
+                        ?: stringResource(R.string.recent),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -292,7 +293,7 @@ private fun BoseRecentRow(
                     text = listOfNotNull(
                         recent.source?.takeIf { it.isNotBlank() },
                         recent.sourceAccount?.takeIf { it.isNotBlank() }
-                    ).joinToString(" | ").ifBlank { "Quelle unbekannt" },
+                    ).joinToString(" | ").ifBlank { stringResource(R.string.unknown_source) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -313,7 +314,7 @@ private fun BoseRecentRow(
             onClick = { onPlayRecent(recent) },
             enabled = enabled && !recent.source.isNullOrBlank()
         ) {
-            Text("Abspielen")
+            Text(stringResource(R.string.play))
         }
     }
 }

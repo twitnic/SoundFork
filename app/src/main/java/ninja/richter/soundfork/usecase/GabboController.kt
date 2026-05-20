@@ -13,19 +13,20 @@ class GabboController(
     fun connect(
         host: String,
         port: Int,
+        statusTexts: GabboStatusTexts,
         onStatus: (String) -> Unit,
         onUpdate: (GabboUpdate) -> Unit
     ) {
         stop()
         val token = "$host:$port:${System.nanoTime()}"
         connectionToken = token
-        onStatus("Live-Updates werden verbunden...")
+        onStatus(statusTexts.connecting)
         webSocket = client.connect(
             host = host,
             listener = object : SoundTouchGabboClient.Listener {
                 override fun onOpen() {
                     if (connectionToken == token) {
-                        onStatus("Live-Updates aktiv")
+                        onStatus(statusTexts.active)
                     }
                 }
 
@@ -37,13 +38,13 @@ class GabboController(
 
                 override fun onClosed(reason: String) {
                     if (connectionToken == token) {
-                        onStatus("Live-Updates getrennt, Polling aktiv")
+                        onStatus(statusTexts.disconnectedPolling)
                     }
                 }
 
                 override fun onFailure(message: String, throwable: Throwable?) {
                     if (connectionToken == token) {
-                        onStatus("$message. Polling aktiv")
+                        onStatus(statusTexts.pollingActive(message))
                     }
                 }
             }
@@ -56,5 +57,12 @@ class GabboController(
         webSocket = null
     }
 }
+
+data class GabboStatusTexts(
+    val connecting: String,
+    val active: String,
+    val disconnectedPolling: String,
+    val pollingActive: (String) -> String
+)
 
 private const val GABBO_NORMAL_CLOSE_CODE = 1000

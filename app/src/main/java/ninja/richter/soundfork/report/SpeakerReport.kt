@@ -19,7 +19,7 @@ fun shareSpeakerReport(
     state: SoundForkUiState
 ) {
     if (state.endpointResults.isEmpty()) {
-        Toast.makeText(context, "Noch keine Lautsprecher-Antworten fuer den Bericht vorhanden.", Toast.LENGTH_LONG)
+        Toast.makeText(context, context.getString(R.string.report_no_endpoint_data), Toast.LENGTH_LONG)
             .show()
         return
     }
@@ -27,7 +27,7 @@ fun shareSpeakerReport(
     val reportFile = runCatching { writeSpeakerReport(context, state) }
         .onFailure { throwable ->
             Log.w(TAG, "shareSpeakerReport() failed to write report error=${throwable.message}", throwable)
-            Toast.makeText(context, "Bericht konnte nicht erstellt werden.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.report_create_failed), Toast.LENGTH_LONG).show()
         }
         .getOrNull()
         ?: return
@@ -38,12 +38,12 @@ fun shareSpeakerReport(
         reportFile
     )
     val subject = buildString {
-        append("SoundFork Bericht")
+        append(context.getString(R.string.report_subject))
         state.selectedSummary?.name?.takeIf { it.isNotBlank() }?.let { append(" - $it") }
     }
     val message = buildString {
-        appendLine("SoundFork Bericht im Anhang.")
-        appendLine("Host: ${state.selectedHost ?: "unbekannt"}:${state.selectedPort}")
+        appendLine(context.getString(R.string.report_attached_message))
+        appendLine("Host: ${state.selectedHost ?: context.getString(R.string.unknown_lower)}:${state.selectedPort}")
     }
     val recipientEmail = context.getString(R.string.report_recipient_email)
 
@@ -71,18 +71,23 @@ fun shareSpeakerReport(
                 reportUri = reportUri
             )
             runCatching {
-                context.startActivity(Intent.createChooser(fallbackIntent, "Bericht per E-Mail senden"))
+                context.startActivity(
+                    Intent.createChooser(
+                        fallbackIntent,
+                        context.getString(R.string.report_email_chooser)
+                    )
+                )
             }.onFailure { fallbackThrowable ->
                 Log.w(
                     TAG,
                     "shareSpeakerReport() failed to start email fallback error=${fallbackThrowable.message}",
                     fallbackThrowable
                 )
-                Toast.makeText(context, "Keine E-Mail-App gefunden.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.report_no_email_app), Toast.LENGTH_LONG).show()
             }
         } else {
             Log.w(TAG, "shareSpeakerReport() failed to start Gmail intent error=${throwable.message}", throwable)
-            Toast.makeText(context, "Bericht konnte nicht an Gmail uebergeben werden.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.report_gmail_failed), Toast.LENGTH_LONG).show()
         }
     }
 }
@@ -125,11 +130,11 @@ private fun buildSpeakerReportText(
 ): String {
     val generatedAt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.US).format(Date())
     return buildString {
-        appendLine("SoundFork Lautsprecher-Bericht")
-        appendLine("Erstellt: $generatedAt")
-        appendLine("App-Version: ${appVersionText(context)}")
+        appendLine(context.getString(R.string.speaker_report_title))
+        appendLine(context.getString(R.string.created_at, generatedAt))
+        appendLine(context.getString(R.string.app_version, appVersionText(context)))
         appendLine()
-        appendLine("Geraet")
+        appendLine(context.getString(R.string.nav_device))
         appendLine("Name: ${state.selectedSummary?.name ?: "-"}")
         appendLine("Typ: ${state.selectedSummary?.type ?: "-"}")
         appendLine("Device ID: ${state.selectedSummary?.deviceId ?: "-"}")
@@ -155,8 +160,8 @@ private fun buildSpeakerReportText(
         appendLine("Stream Type: ${state.nowPlaying?.streamType ?: "-"}")
         appendLine("Art URL: ${state.nowPlaying?.artUrl ?: "-"}")
         appendLine()
-        appendLine("Quellen")
-        appendLine("Aktuell: ${state.currentSource?.source ?: "-"} ${state.currentSource?.sourceAccount ?: ""}".trim())
+        appendLine(context.getString(R.string.sources))
+        appendLine("${context.getString(R.string.currently_playing)}: ${state.currentSource?.source ?: "-"} ${state.currentSource?.sourceAccount ?: ""}".trim())
         state.sources.forEachIndexed { index, source ->
             appendLine("${index + 1}. ${source.source} account=${source.sourceAccount ?: "-"} name=${source.name ?: "-"} status=${source.status ?: "-"}")
         }
@@ -166,9 +171,9 @@ private fun buildSpeakerReportText(
             appendLine("${index + 1}. id=${preset.id ?: "-"} name=${preset.name ?: "-"} source=${preset.source ?: "-"} account=${preset.sourceAccount ?: "-"} location=${preset.location ?: "-"} presetable=${preset.isPresetable ?: "-"}")
         }
         appendLine()
-        appendLine("Zonen")
+        appendLine(context.getString(R.string.nav_zones))
         appendLine("Master: ${state.zoneState?.masterDeviceId ?: "-"}")
-        appendLine("Sender-IP: ${state.zoneState?.senderIpAddress ?: "-"}")
+        appendLine("${context.getString(R.string.sender_ip, state.zoneState?.senderIpAddress ?: "-")}")
         state.zoneState?.members.orEmpty().forEachIndexed { index, member ->
             appendLine("${index + 1}. deviceId=${member.deviceId ?: "-"} ip=${member.ipAddress ?: "-"} name=${member.name ?: "-"} role=${member.role ?: "-"}")
         }
@@ -202,9 +207,9 @@ private fun buildSpeakerReportText(
 private fun appVersionText(context: Context): String {
     return runCatching {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        "${packageInfo.versionName ?: "unbekannt"} (${packageInfo.longVersionCode})"
+        "${packageInfo.versionName ?: context.getString(R.string.unknown_lower)} (${packageInfo.longVersionCode})"
     }.getOrElse {
-        "unbekannt"
+        context.getString(R.string.unknown_lower)
     }
 }
 

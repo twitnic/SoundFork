@@ -3,6 +3,7 @@ package ninja.richter.soundfork
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import androidx.annotation.StringRes
 import org.xmlpull.v1.XmlPullParser
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -34,6 +35,7 @@ import ninja.richter.soundfork.model.SoundForkUiState
 import ninja.richter.soundfork.media.SoundForkMediaService
 import ninja.richter.soundfork.usecase.DeviceControlUseCase
 import ninja.richter.soundfork.usecase.GabboController
+import ninja.richter.soundfork.usecase.GabboStatusTexts
 import ninja.richter.soundfork.usecase.PlaybackUseCase
 import ninja.richter.soundfork.usecase.PresetUseCase
 import ninja.richter.soundfork.usecase.ZoneUseCase
@@ -62,6 +64,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     )
     val uiState: StateFlow<SoundForkUiState> = _uiState.asStateFlow()
+
+    private fun str(@StringRes resId: Int, vararg args: Any): String {
+        return getApplication<Application>().getString(resId, *args)
+    }
 
     init {
         val lastHost = preferences.getString(KEY_LAST_HOST, null)?.takeIf { it.isNotBlank() }
@@ -135,7 +141,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isDiscovering = false,
-                        discoveryError = throwable.message ?: "Netzwerksuche fehlgeschlagen"
+                        discoveryError = throwable.message ?: str(R.string.network_search_failed)
                     )
                 }
             }
@@ -146,7 +152,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val host = _uiState.value.manualHostInput.trim()
         if (host.isBlank()) {
             Log.w(TAG, "connectUsingManualHost() ignored: empty input")
-            _uiState.update { it.copy(snapshotError = "Bitte eine IP-Adresse oder Hostname eingeben") }
+            _uiState.update { it.copy(snapshotError = str(R.string.host_required)) }
             return
         }
         Log.i(TAG, "connectUsingManualHost() host=$host")
@@ -193,7 +199,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     snapshotError = null,
                     presetStatus = null,
                     sourceStatus = null,
-                    realtimeStatus = "Live-Updates werden verbunden...",
+                    realtimeStatus = str(R.string.live_updates_connecting),
                     realtimeError = null,
                     endpointResults = emptyList()
                 )
@@ -288,7 +294,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         snapshotError = if (fallbackToDiscoveryOnFailure) {
                             null
                         } else {
-                            throwable.message ?: "Gerät konnte nicht ausgelesen werden"
+                            throwable.message ?: str(R.string.device_read_failed)
                         },
                         realtimeStatus = null,
                         realtimeError = null
@@ -321,7 +327,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val name = state.deviceNameDraft.trim()
         if (name.isBlank()) {
-            _uiState.update { it.copy(snapshotError = "Gerätename darf nicht leer sein") }
+            _uiState.update { it.copy(snapshotError = str(R.string.device_name_empty)) }
             return
         }
         val port = state.selectedPort
@@ -344,7 +350,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isRenamingDevice = false,
-                        snapshotError = throwable.message ?: "Gerätename konnte nicht gesetzt werden"
+                        snapshotError = throwable.message ?: str(R.string.device_name_failed)
                     )
                 }
             }
@@ -384,7 +390,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingVolume = false,
-                        snapshotError = throwable.message ?: "Lautstaerke konnte nicht gesetzt werden"
+                        snapshotError = throwable.message ?: str(R.string.volume_failed)
                     )
                 }
             }
@@ -424,7 +430,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingVolume = false,
-                        snapshotError = throwable.message ?: "Mute konnte nicht gesetzt werden"
+                        snapshotError = throwable.message ?: str(R.string.mute_failed)
                     )
                 }
             }
@@ -468,7 +474,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingBass = false,
-                        snapshotError = throwable.message ?: "Bass konnte nicht gesetzt werden"
+                        snapshotError = throwable.message ?: str(R.string.bass_failed)
                     )
                 }
             }
@@ -518,7 +524,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingToneControls = false,
-                        snapshotError = throwable.message ?: "Treble konnte nicht gesetzt werden"
+                        snapshotError = throwable.message ?: str(R.string.treble_failed)
                     )
                 }
             }
@@ -548,7 +554,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val host = state.selectedHost ?: return
         val path = state.debugEndpointInput.trim()
         if (path.isBlank()) {
-            _uiState.update { it.copy(debugEndpointStatus = "Bitte einen API-Pfad eingeben") }
+            _uiState.update { it.copy(debugEndpointStatus = str(R.string.api_path_required)) }
             return
         }
         if (state.isTestingDebugEndpoint) {
@@ -571,7 +577,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         isTestingDebugEndpoint = false,
                         debugEndpointResult = result,
-                        debugEndpointStatus = "API-Test abgeschlossen: HTTP ${result.httpCode ?: "n/a"}"
+                        debugEndpointStatus = str(R.string.api_test_done, result.httpCode ?: "n/a")
                     )
                 }
             }.onFailure { throwable ->
@@ -579,7 +585,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isTestingDebugEndpoint = false,
-                        debugEndpointStatus = throwable.message ?: "API-Test fehlgeschlagen"
+                        debugEndpointStatus = throwable.message ?: str(R.string.api_test_failed)
                     )
                 }
             }
@@ -590,7 +596,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         val streamUrl = state.dlnaStreamUrlInput.trim()
         if (streamUrl.isBlank()) {
-            _uiState.update { it.copy(dlnaStreamStatus = "Bitte eine Stream-URL eingeben") }
+            _uiState.update { it.copy(dlnaStreamStatus = str(R.string.stream_url_required)) }
             return
         }
         playDlnaStreamUrl(streamUrl)
@@ -641,7 +647,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isStartingDlnaStream = false,
-                        dlnaStreamStatus = "DLNA Stream wurde gestartet"
+                        dlnaStreamStatus = str(R.string.dlna_started)
                     )
                 }
             }.onFailure { throwable ->
@@ -649,7 +655,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isStartingDlnaStream = false,
-                        dlnaStreamStatus = throwable.message ?: "DLNA Stream konnte nicht gestartet werden"
+                        dlnaStreamStatus = throwable.message ?: str(R.string.dlna_failed)
                     )
                 }
             }
@@ -693,7 +699,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingTransportKey = false,
-                        dlnaStreamStatus = "$normalizedKey gesendet"
+                        dlnaStreamStatus = str(R.string.key_sent, normalizedKey)
                     )
                 }
             }.onFailure { throwable ->
@@ -705,7 +711,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingTransportKey = false,
-                        snapshotError = throwable.message ?: "Taste konnte nicht gesendet werden"
+                        snapshotError = throwable.message ?: str(R.string.key_failed)
                     )
                 }
             }
@@ -738,7 +744,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         isSelectingSource = false,
                         currentSource = source,
-                        sourceStatus = "Quelle ${source.source} wurde ausgewaehlt"
+                        sourceStatus = str(R.string.source_selected, source.source)
                     )
                 }
             }.onFailure { throwable ->
@@ -746,7 +752,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSelectingSource = false,
-                        sourceStatus = throwable.message ?: "Quelle konnte nicht ausgewaehlt werden"
+                        sourceStatus = throwable.message ?: str(R.string.source_select_failed)
                     )
                 }
             }
@@ -779,8 +785,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         isSendingPresetCommand = false,
                         currentRadioStation = preset?.toRadioStation(id) ?: it.currentRadioStation,
-                        presetStatus = "Preset $id wurde gestartet",
-                        dlnaStreamStatus = "Preset $id wurde gestartet"
+                        presetStatus = str(R.string.preset_started, id),
+                        dlnaStreamStatus = str(R.string.preset_started, id)
                     )
                 }
             }.onFailure { throwable ->
@@ -788,7 +794,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingPresetCommand = false,
-                        presetStatus = throwable.message ?: "Preset konnte nicht gestartet werden"
+                        presetStatus = throwable.message ?: str(R.string.preset_start_failed)
                     )
                 }
             }
@@ -820,8 +826,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(
                         isSendingRecentCommand = false,
                         currentRadioStation = recent.toRadioStation() ?: it.currentRadioStation,
-                        recentStatus = "Recent wurde gestartet",
-                        dlnaStreamStatus = "Recent wurde gestartet"
+                        recentStatus = str(R.string.recent_started),
+                        dlnaStreamStatus = str(R.string.recent_started)
                     )
                 }
             }.onFailure { throwable ->
@@ -829,7 +835,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingRecentCommand = false,
-                        recentStatus = throwable.message ?: "Recent konnte nicht gestartet werden"
+                        recentStatus = throwable.message ?: str(R.string.recent_start_failed)
                     )
                 }
             }
@@ -851,7 +857,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 it.copy(
                     isSendingPresetCommand = true,
                     snapshotError = null,
-                    presetStatus = "Preset $id wird gespeichert..."
+                    presetStatus = str(R.string.preset_saving, id)
                 )
             }
             runCatching {
@@ -871,7 +877,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         currentRadioStation = currentRadioStation ?: it.currentRadioStation,
                         zoneState = snapshot.zoneState,
                         endpointResults = snapshot.endpointResults,
-                        presetStatus = "Aktueller Stream wurde auf Preset $id gespeichert"
+                        presetStatus = str(R.string.preset_saved, id)
                     )
                 }
             }.onFailure { throwable ->
@@ -879,7 +885,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingPresetCommand = false,
-                        presetStatus = throwable.message ?: "Preset konnte nicht gespeichert werden"
+                        presetStatus = throwable.message ?: str(R.string.preset_save_failed)
                     )
                 }
             }
@@ -888,7 +894,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setZoneWithSpeaker(speaker: DiscoveredSpeaker) {
         runZoneCommand(
-            actionLabel = "Zone wurde erstellt",
+            actionLabel = str(R.string.zone_created),
             command = { host, port, masterDeviceId ->
                 zoneUseCase.setZone(
                     host = host,
@@ -903,7 +909,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addZoneSlave(speaker: DiscoveredSpeaker) {
         runZoneCommand(
-            actionLabel = "Lautsprecher wurde zur Zone hinzugefügt",
+            actionLabel = str(R.string.zone_slave_added),
             command = { host, port, masterDeviceId ->
                 zoneUseCase.addZoneSlave(
                     host = host,
@@ -917,7 +923,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun removeZoneSlave(member: ZoneMember) {
         runZoneCommand(
-            actionLabel = "Lautsprecher wurde aus der Zone entfernt",
+            actionLabel = str(R.string.zone_slave_removed),
             command = { host, port, masterDeviceId ->
                 zoneUseCase.removeZoneSlave(
                     host = host,
@@ -938,7 +944,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val masterDeviceId = state.selectedSummary?.deviceId
             ?: state.zoneState?.masterDeviceId
             ?: run {
-                _uiState.update { it.copy(zoneStatus = "Device-ID des Masters fehlt") }
+                _uiState.update { it.copy(zoneStatus = str(R.string.zone_master_device_id_missing)) }
                 return
             }
         if (state.isUpdatingZone) {
@@ -975,7 +981,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isUpdatingZone = false,
-                        zoneStatus = throwable.message ?: "Zone konnte nicht aktualisiert werden"
+                        zoneStatus = throwable.message ?: str(R.string.zone_update_failed)
                     )
                 }
             }
@@ -1073,6 +1079,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         gabboController.connect(
             host = host,
             port = port,
+            statusTexts = GabboStatusTexts(
+                connecting = str(R.string.live_updates_connecting),
+                active = str(R.string.live_updates_active),
+                disconnectedPolling = str(R.string.live_updates_disconnected_polling),
+                pollingActive = { message -> str(R.string.polling_active_suffix, message) }
+            ),
             onStatus = { status ->
                 _uiState.update {
                     if (it.selectedHost == host && it.selectedPort == port) {
@@ -1102,9 +1114,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             if (it.selectedHost == host && it.selectedPort == port) {
                 it.copy(
-                    realtimeStatus = "Live-Update: ${update.types.toDisplayText()}",
+                    realtimeStatus = str(R.string.live_update_prefix, update.types.toDisplayText()),
                     realtimeError = if (GabboUpdateType.ERROR in update.types) {
-                        update.errorMessage ?: "Lautsprecher meldet einen Fehler"
+                        update.errorMessage ?: str(R.string.speaker_reports_error)
                     } else {
                         it.realtimeError
                     }
@@ -1251,7 +1263,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }.getOrNull()
 
         if (nowPlaying == null) {
-            markPlaybackUnavailable("Lautsprecher nicht erreichbar")
+            markPlaybackUnavailable(str(R.string.speaker_unreachable))
             return
         }
 
@@ -1260,7 +1272,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 it.copy(
                     nowPlaying = nowPlaying,
                     currentRadioStation = null,
-                    dlnaStreamStatus = "Keine Wiedergabe aktiv"
+                    dlnaStreamStatus = str(R.string.no_active_playback)
                 )
             }
             SoundForkMediaService.stop(getApplication())
@@ -1327,7 +1339,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         if (name.isNotBlank() && streamUrl.isNotBlank()) {
                             stations += RadioStation(
                                 name = name,
-                                description = description.ifBlank { "Internet Radio" },
+                                description = description.ifBlank { str(R.string.internet_radio) },
                                 streamUrl = streamUrl
                             )
                         }
@@ -1388,7 +1400,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             station.streamUrl.equals(streamUrl, ignoreCase = true)
         }
         return matchingStation ?: RadioStation(
-            name = name?.takeIf { it.isNotBlank() } ?: "Preset $presetId",
+            name = name?.takeIf { it.isNotBlank() } ?: str(R.string.preset_name, presetId),
             description = streamUrl,
             streamUrl = streamUrl
         )
@@ -1400,7 +1412,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             station.streamUrl.equals(streamUrl, ignoreCase = true)
         }
         return matchingStation ?: RadioStation(
-            name = name?.takeIf { it.isNotBlank() } ?: source?.takeIf { it.isNotBlank() } ?: "Recent",
+            name = name?.takeIf { it.isNotBlank() } ?: source?.takeIf { it.isNotBlank() } ?: str(R.string.recent),
             description = streamUrl,
             streamUrl = streamUrl
         )
@@ -1436,7 +1448,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
             .distinct()
             .joinToString(" | ")
-            .ifBlank { "Aktiv auf dem Lautsprecher" }
+            .ifBlank { str(R.string.active_on_speaker) }
 
         return RadioStation(
             name = title,
@@ -1494,17 +1506,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun Set<GabboUpdateType>.toDisplayText(): String {
         return joinToString(", ") { type ->
             when (type) {
-                GabboUpdateType.NOW_PLAYING -> "Wiedergabe"
-                GabboUpdateType.VOLUME -> "Lautstärke"
-                GabboUpdateType.BASS -> "Bass"
-                GabboUpdateType.PRESETS -> "Presets"
-                GabboUpdateType.SOURCES -> "Quellen"
-                GabboUpdateType.ZONE -> "Zonen"
-                GabboUpdateType.INFO -> "Gerät"
-                GabboUpdateType.CONNECTION -> "Verbindung"
-                GabboUpdateType.USER_ACTIVITY -> "Bedienung"
-                GabboUpdateType.ERROR -> "Fehler"
-                GabboUpdateType.UNKNOWN -> "unbekannt"
+                GabboUpdateType.NOW_PLAYING -> str(R.string.gabbo_now_playing)
+                GabboUpdateType.VOLUME -> str(R.string.volume)
+                GabboUpdateType.BASS -> str(R.string.bass)
+                GabboUpdateType.PRESETS -> str(R.string.nav_presets)
+                GabboUpdateType.SOURCES -> str(R.string.gabbo_sources)
+                GabboUpdateType.ZONE -> str(R.string.nav_zones)
+                GabboUpdateType.INFO -> str(R.string.gabbo_info)
+                GabboUpdateType.CONNECTION -> str(R.string.gabbo_connection)
+                GabboUpdateType.USER_ACTIVITY -> str(R.string.gabbo_user_activity)
+                GabboUpdateType.ERROR -> str(R.string.error)
+                GabboUpdateType.UNKNOWN -> str(R.string.unknown_lower)
             }
         }
     }

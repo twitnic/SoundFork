@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -55,7 +56,7 @@ fun ManualConnectCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Direkt verbinden",
+                text = stringResource(R.string.direct_connect),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Medium
             )
@@ -64,7 +65,7 @@ fun ManualConnectCard(
                 value = hostInput,
                 onValueChange = onHostInputChanged,
                 singleLine = true,
-                label = { Text("IP oder Hostname") },
+                label = { Text(stringResource(R.string.host_or_ip)) },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Uri,
                     imeAction = ImeAction.Done
@@ -83,7 +84,7 @@ fun ManualConnectCard(
                 },
                 enabled = enabled
             ) {
-                Text("Verbinden")
+                Text(stringResource(R.string.connect))
             }
         }
     }
@@ -107,7 +108,7 @@ fun DiscoveredSpeakerCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = speaker.name ?: "Unbekannter SoundTouch",
+                text = speaker.name ?: stringResource(R.string.unknown_soundtouch),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -145,7 +146,7 @@ fun DiscoveredSpeakerCard(
                 },
                 enabled = enabled
             ) {
-                Text("Daten auslesen")
+                Text(stringResource(R.string.read_data))
             }
         }
     }

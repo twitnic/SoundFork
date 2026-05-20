@@ -40,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -69,7 +70,7 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
             permissionError.value = null
             viewModel.discoverSpeakers()
         } else {
-            permissionError.value = "Standort- oder WLAN-Berechtigung fehlt. Bitte im System freigeben."
+            permissionError.value = context.getString(R.string.permission_discovery_missing)
         }
     }
     val missingPermissions = requiredPermissions.filter { permission ->
@@ -153,16 +154,16 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                         Text(
                             text = if (isDeviceScreen) {
                                 when (state.devicePage) {
-                                    SoundForkDevicePage.RADIO -> "Radio"
-                                    SoundForkDevicePage.DEVICE -> "Gerät"
-                                    SoundForkDevicePage.SOURCE -> "Quelle"
-                                    SoundForkDevicePage.PRESETS -> "Presets"
-                                    SoundForkDevicePage.RECENTS -> "Recents"
-                                    SoundForkDevicePage.ZONES -> "Zonen"
-                                    SoundForkDevicePage.DEBUG -> "Debug"
+                                    SoundForkDevicePage.RADIO -> stringResource(R.string.nav_radio)
+                                    SoundForkDevicePage.DEVICE -> stringResource(R.string.nav_device)
+                                    SoundForkDevicePage.SOURCE -> stringResource(R.string.nav_source)
+                                    SoundForkDevicePage.PRESETS -> stringResource(R.string.nav_presets)
+                                    SoundForkDevicePage.RECENTS -> stringResource(R.string.nav_recents)
+                                    SoundForkDevicePage.ZONES -> stringResource(R.string.nav_zones)
+                                    SoundForkDevicePage.DEBUG -> stringResource(R.string.nav_debug)
                                 }
                             } else {
-                                "SoundFork"
+                                stringResource(R.string.app_name)
                             },
                             style = MaterialTheme.typography.titleLarge
                         )
@@ -173,7 +174,7 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                                 onClick = { viewModel.sendTransportKey("POWER") },
                                 enabled = !state.isLoadingSnapshot && !state.isSendingTransportKey
                             ) {
-                                Text("Ein/Aus")
+                                Text(stringResource(R.string.power_toggle))
                             }
                         }
                     }
@@ -216,13 +217,12 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             Text(
-                                text = "SoundTouch Speaker finden",
+                                text = stringResource(R.string.discovery_title),
                                 style = MaterialTheme.typography.headlineMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                text = "Die App sucht per mDNS und SSDP im lokalen Netzwerk. " +
-                                    "Alternativ kannst du direkt eine IP eingeben.",
+                                text = stringResource(R.string.discovery_description),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -241,7 +241,13 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                                     },
                                     enabled = !state.isDiscovering
                                 ) {
-                                    Text(if (state.isDiscovering) "Suche laeuft..." else "Netzwerk suchen")
+                                    Text(
+                                        if (state.isDiscovering) {
+                                            stringResource(R.string.discovery_running)
+                                        } else {
+                                            stringResource(R.string.discovery_search_network)
+                                        }
+                                    )
                                 }
                                 if (state.lastSavedHost != null) {
                                     FilledTonalButton(
@@ -250,9 +256,9 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                                     ) {
                                         Text(
                                             if (state.isConnectingLastSpeaker) {
-                                                "Verbinde..."
+                                                stringResource(R.string.discovery_connecting)
                                             } else {
-                                                "Zuletzt öffnen"
+                                                stringResource(R.string.discovery_open_last)
                                             }
                                         )
                                     }
@@ -260,7 +266,11 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                             }
                             state.lastSavedHost?.let { host ->
                                 Text(
-                                    text = "Zuletzt gespeichert: $host:${state.lastSavedPort}",
+                                    text = stringResource(
+                                        R.string.discovery_last_saved,
+                                        host,
+                                        state.lastSavedPort
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
@@ -293,7 +303,7 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                 if (state.discoveredSpeakers.isNotEmpty()) {
                     item {
                         Text(
-                            text = "Gefundene Lautsprecher",
+                            text = stringResource(R.string.discovery_found_speakers),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -528,7 +538,7 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                 if (state.devicePage == SoundForkDevicePage.DEBUG && state.endpointResults.isNotEmpty()) {
                     item {
                         Text(
-                            text = "Ausgelesene API-Endpunkte",
+                            text = stringResource(R.string.read_api_endpoints),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )

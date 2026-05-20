@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -60,12 +61,12 @@ fun SelectedDeviceCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Verbundenes Gerät",
+                text = stringResource(R.string.connected_device),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = name ?: "Name unbekannt",
+                text = name ?: stringResource(R.string.unknown_name),
                 style = MaterialTheme.typography.bodyLarge
             )
             Text(
@@ -74,7 +75,7 @@ fun SelectedDeviceCard(
                 style = MaterialTheme.typography.bodySmall
             )
             if (type != null) {
-                Text("Typ: $type", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.type_prefix, type), style = MaterialTheme.typography.bodySmall)
             }
             if (deviceId != null) {
                 Text("Device ID: $deviceId", style = MaterialTheme.typography.bodySmall)
@@ -83,7 +84,7 @@ fun SelectedDeviceCard(
                 modifier = Modifier.fillMaxWidth(),
                 value = nameDraft,
                 onValueChange = onNameChanged,
-                label = { Text("Gerätename") },
+                label = { Text(stringResource(R.string.device_name)) },
                 singleLine = true,
                 enabled = !isRenaming,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -93,7 +94,7 @@ fun SelectedDeviceCard(
                 onClick = onApplyName,
                 enabled = !isRenaming && nameDraft.isNotBlank() && nameDraft != name.orEmpty()
             ) {
-                Text(if (isRenaming) "Speichere..." else "Name speichern")
+                Text(if (isRenaming) stringResource(R.string.saving) else stringResource(R.string.save_name))
             }
             realtimeStatus?.let { status ->
                 Surface(
@@ -128,7 +129,7 @@ fun SelectedDeviceCard(
                 },
                 enabled = !isRefreshing
             ) {
-                Text("Neu laden")
+                Text(stringResource(R.string.reload))
             }
         }
     }
@@ -158,7 +159,7 @@ fun VolumeControlCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Lautstaerke",
+                text = stringResource(R.string.volume),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -173,12 +174,15 @@ fun VolumeControlCard(
             )
 
             Text(
-                text = "Target: $target | Actual: ${actual ?: "-"}",
+                text = stringResource(R.string.target_actual, target.toString(), actual?.toString() ?: "-"),
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace
             )
             Text(
-                text = "Mute: ${if (muteEnabled) "AN" else "AUS"}",
+                text = stringResource(
+                    R.string.mute_state,
+                    if (muteEnabled) stringResource(R.string.on) else stringResource(R.string.off)
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace
             )
@@ -187,7 +191,13 @@ fun VolumeControlCard(
                 onClick = onToggleMute,
                 enabled = !isApplying
             ) {
-                Text(if (muteEnabled) "Mute deaktivieren" else "Mute aktivieren")
+                Text(
+                    if (muteEnabled) {
+                        stringResource(R.string.disable_mute)
+                    } else {
+                        stringResource(R.string.enable_mute)
+                    }
+                )
             }
         }
     }
@@ -215,7 +225,7 @@ fun BassControlCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Bass",
+                text = stringResource(R.string.bass),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -228,7 +238,7 @@ fun BassControlCard(
                 enabled = !isApplying
             )
             Text(
-                text = "Target: $target | Actual: ${actual ?: "-"}",
+                text = stringResource(R.string.target_actual, target.toString(), actual?.toString() ?: "-"),
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace
             )
@@ -268,13 +278,13 @@ fun ToneControlCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Hoehen",
+                text = stringResource(R.string.treble),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             if (treble == null || min >= max) {
                 Text(
-                    text = "Treble wird von diesem Lautsprecher nicht gemeldet.",
+                    text = stringResource(R.string.treble_not_reported),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -290,7 +300,7 @@ fun ToneControlCard(
                 enabled = !isApplying
             )
             Text(
-                text = "Aktuell: $current | Bereich: $min bis $max | Schritt: $step",
+                text = stringResource(R.string.treble_current_range, current, min, max, step),
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace
             )
@@ -298,7 +308,7 @@ fun ToneControlCard(
                 onClick = onApplyTreble,
                 enabled = !isApplying
             ) {
-                Text(if (isApplying) "Speichere..." else "Treble speichern")
+                Text(if (isApplying) stringResource(R.string.saving) else stringResource(R.string.save_treble))
             }
         }
     }
@@ -328,12 +338,12 @@ fun DynamicAudioControlsCard(endpointResults: List<EndpointResult>) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Dynamische Audio-Controls",
+                text = stringResource(R.string.dynamic_audio_controls),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Aus /capabilities geladene Audio-Endpunkte. Werte, die noch keine eigene UI haben, bleiben hier kontrollierbar sichtbar.",
+                text = stringResource(R.string.dynamic_audio_controls_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -384,7 +394,7 @@ private fun AudioEndpointPreview(result: EndpointResult) {
             )
         } else {
             Text(
-                text = result.errorMessage ?: "Keine Antwortdaten",
+                text = result.errorMessage ?: stringResource(R.string.no_response_data),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (result.isError) {
                     MaterialTheme.colorScheme.error

@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,7 +56,7 @@ fun SourceListCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Quellen",
+                text = stringResource(R.string.sources),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -71,7 +72,7 @@ fun SourceListCard(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            text = "Aktuelle Quelle",
+                            text = stringResource(R.string.current_source),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -82,7 +83,7 @@ fun SourceListCard(
                         )
                         source.sourceAccount?.takeIf { it.isNotBlank() }?.let { account ->
                             Text(
-                                text = "Account: $account",
+                                text = stringResource(R.string.account_prefix, account),
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -91,7 +92,7 @@ fun SourceListCard(
             }
             if (sources.isEmpty()) {
                 Text(
-                    text = "Keine Quellen aus /sources gefunden.",
+                    text = stringResource(R.string.no_sources),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -126,7 +127,7 @@ fun SourceListCard(
                             Text(
                                 text = listOfNotNull(
                                     source.sourceAccount?.let { "Account: $it" },
-                                    source.status?.let { "Status: $it" }
+                                    source.status?.let { stringResource(R.string.status_prefix, it) }
                                 ).joinToString(" | ").ifBlank { source.source },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (selectable) {
@@ -177,13 +178,13 @@ fun ZoneInfoCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Zonen",
+                text = stringResource(R.string.nav_zones),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             if (zoneState == null) {
                 Text(
-                    text = "Keine strukturierte Zone-Information aus /getZone vorhanden.",
+                    text = stringResource(R.string.no_zone_info),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -214,7 +215,7 @@ fun ZoneInfoCard(
                 )
             }
             Text(
-                text = zoneXml ?: "Keine rohe Zone-XML aus /getZone vorhanden.",
+                text = zoneXml ?: stringResource(R.string.no_zone_xml),
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 0.dp, max = 1_200.dp)
@@ -248,18 +249,18 @@ fun ZoneSummary(
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
-                    text = "Zone Master",
+                    text = stringResource(R.string.zone_master),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = zoneState.masterDeviceId ?: "Nicht gemeldet",
+                    text = zoneState.masterDeviceId ?: stringResource(R.string.not_reported),
                     style = MaterialTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Monospace
                 )
                 zoneState.senderIpAddress?.let { ip ->
                     Text(
-                        text = "Sender-IP: $ip",
+                        text = stringResource(R.string.sender_ip, ip),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -268,7 +269,7 @@ fun ZoneSummary(
 
         if (zoneState.members.isEmpty()) {
             Text(
-                text = "Keine Zone-Mitglieder gemeldet.",
+                text = stringResource(R.string.no_zone_members),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -314,18 +315,18 @@ fun ZoneActions(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "Zone bearbeiten",
+            text = stringResource(R.string.edit_zone),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold
         )
         Text(
-            text = "Zum Erstellen oder Erweitern einer Zone muss der zweite Lautsprecher vorher in der Suche gefunden worden sein.",
+            text = stringResource(R.string.edit_zone_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (candidates.isEmpty()) {
             Text(
-                text = "Keine weiteren Lautsprecher mit Device-ID bekannt.",
+                text = stringResource(R.string.no_zone_candidates),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -381,13 +382,13 @@ fun ZoneCandidateRow(
                     onClick = onSetZoneWithSpeaker,
                     enabled = !isUpdating
                 ) {
-                    Text("Zone erstellen")
+                    Text(stringResource(R.string.create_zone))
                 }
                 OutlinedButton(
                     onClick = onAddZoneSlave,
                     enabled = !isUpdating
                 ) {
-                    Text("Hinzufügen")
+                    Text(stringResource(R.string.add))
                 }
             }
         }
@@ -425,7 +426,7 @@ fun ZoneMemberRow(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                text = member.name ?: member.deviceId ?: "Zone-Mitglied",
+                text = member.name ?: member.deviceId ?: stringResource(R.string.zone_member),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -434,7 +435,7 @@ fun ZoneMemberRow(
                     member.role?.takeIf { it.isNotBlank() },
                     member.ipAddress?.takeIf { it.isNotBlank() },
                     member.deviceId?.takeIf { it.isNotBlank() }
-                ).joinToString(" | ").ifBlank { "Keine Details" },
+                ).joinToString(" | ").ifBlank { stringResource(R.string.no_details) },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -444,7 +445,7 @@ fun ZoneMemberRow(
                 onClick = onRemove,
                 enabled = !isUpdating
             ) {
-                Text("Entfernen")
+                Text(stringResource(R.string.remove))
             }
         }
     }

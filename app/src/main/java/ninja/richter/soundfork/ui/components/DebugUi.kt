@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -47,7 +48,7 @@ fun DlnaStreamCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "DLNA Stream",
+                text = stringResource(R.string.dlna_stream),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -56,7 +57,7 @@ fun DlnaStreamCard(
                 value = streamUrl,
                 onValueChange = onStreamUrlChanged,
                 singleLine = true,
-                label = { Text("Stream-URL") },
+                label = { Text(stringResource(R.string.stream_url)) },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Uri,
                     imeAction = ImeAction.Done
@@ -69,7 +70,7 @@ fun DlnaStreamCard(
                 onClick = onPlay,
                 enabled = !isStarting
             ) {
-                Text(if (isStarting) "Starte..." else "Stream starten")
+                Text(if (isStarting) stringResource(R.string.starting) else stringResource(R.string.start_stream))
             }
             if (status != null) {
                 Text(
@@ -108,12 +109,12 @@ fun ApiTestCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "API-Test",
+                text = stringResource(R.string.api_test),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Teste einzelne SoundTouch-Endpunkte direkt am verbundenen Lautsprecher, z. B. /now_playing, /volume oder /presets.",
+                text = stringResource(R.string.api_test_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -122,7 +123,7 @@ fun ApiTestCard(
                 value = endpointInput,
                 onValueChange = onEndpointInputChanged,
                 singleLine = true,
-                label = { Text("API-Pfad") },
+                label = { Text(stringResource(R.string.api_path)) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { onTestEndpoint() })
             )
@@ -130,7 +131,7 @@ fun ApiTestCard(
                 onClick = onTestEndpoint,
                 enabled = !isTesting
             ) {
-                Text(if (isTesting) "Teste..." else "Endpunkt testen")
+                Text(if (isTesting) stringResource(R.string.testing) else stringResource(R.string.test_endpoint))
             }
             if (status != null) {
                 Text(
@@ -170,12 +171,12 @@ fun ReportCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Bericht",
+                text = stringResource(R.string.report),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Erstellt eine Textdatei mit allen aktuell ausgelesenen Lautsprecher-Antworten und haengt sie an eine Mail an.",
+                text = stringResource(R.string.report_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -183,7 +184,7 @@ fun ReportCard(
                 onClick = onSendReport,
                 enabled = enabled
             ) {
-                Text("Bericht per Mail senden")
+                Text(stringResource(R.string.send_report_mail))
             }
         }
     }
@@ -204,8 +205,8 @@ fun EndpointResultCard(
     val resolvedPath = result.resolvedPath ?: result.requestedAliases.firstOrNull().orEmpty()
     val statusText = when {
         result.httpCode != null -> "HTTP ${result.httpCode}"
-        result.errorMessage != null -> "Fehler"
-        else -> "Unbekannt"
+        result.errorMessage != null -> stringResource(R.string.error)
+        else -> stringResource(R.string.unknown)
     }
     val statusColor = when {
         result.isError -> MaterialTheme.colorScheme.error
@@ -213,7 +214,7 @@ fun EndpointResultCard(
         else -> MaterialTheme.colorScheme.secondary
     }
 
-    val body = result.body ?: result.errorMessage ?: "Keine Daten"
+    val body = result.body ?: result.errorMessage ?: stringResource(R.string.no_data)
     val canCollapse = body.length > MAX_BODY_PREVIEW_LENGTH
     val shownBody = if (canCollapse && !expanded) {
         body.take(MAX_BODY_PREVIEW_LENGTH) + "\n..."
@@ -254,7 +255,7 @@ fun EndpointResultCard(
             )
             if (canCollapse) {
                 TextButton(onClick = onToggleExpand) {
-                    Text(if (expanded) "Einklappen" else "Mehr anzeigen")
+                    Text(if (expanded) stringResource(R.string.collapse) else stringResource(R.string.show_more))
                 }
             }
         }

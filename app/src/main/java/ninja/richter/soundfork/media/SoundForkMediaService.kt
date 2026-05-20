@@ -32,11 +32,12 @@ class SoundForkMediaService : Service() {
     private var speakerHost: String? = null
     private var speakerPort: Int = SoundTouchRepository.DEFAULT_PORT
     private var title: String = DEFAULT_TITLE
-    private var subtitle: String = DEFAULT_SUBTITLE
+    private var subtitle: String = ""
     private var isPlaying: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
+        subtitle = getString(R.string.media_default_subtitle)
         ensureNotificationChannel()
         mediaSession = MediaSession(this, TAG).apply {
             setCallback(object : MediaSession.Callback() {
@@ -108,7 +109,7 @@ class SoundForkMediaService : Service() {
             }.onSuccess {
                 isPlaying = normalizedAction == "PLAY"
                 if (normalizedAction == "STOP") {
-                    subtitle = "Gestoppt"
+                    subtitle = getString(R.string.stopped)
                 }
                 updateMediaSession()
                 startInForeground()
@@ -166,14 +167,14 @@ class SoundForkMediaService : Service() {
             .addAction(
                 Notification.Action.Builder(
                     R.drawable.ic_notification,
-                    if (isPlaying) "Pause" else "Play",
+                    if (isPlaying) getString(R.string.pause) else getString(R.string.play),
                     serviceIntent(if (isPlaying) ACTION_PAUSE else ACTION_PLAY)
                 ).build()
             )
             .addAction(
                 Notification.Action.Builder(
                     R.drawable.ic_notification,
-                    "Stop",
+                    getString(R.string.stop),
                     serviceIntent(ACTION_STOP)
                 ).build()
             )
@@ -212,10 +213,10 @@ class SoundForkMediaService : Service() {
     private fun ensureNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "SoundFork Wiedergabe",
+            getString(R.string.media_channel_name),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Steuerung fuer den verbundenen Bose-Lautsprecher"
+            description = getString(R.string.media_channel_description)
         }
         getSystemService(NotificationManager::class.java)
             .createNotificationChannel(channel)
@@ -227,7 +228,6 @@ class SoundForkMediaService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val REQUEST_OPEN_APP = 3001
         private const val DEFAULT_TITLE = "SoundFork"
-        private const val DEFAULT_SUBTITLE = "Bose-Lautsprecher verbunden"
         private const val ACTION_UPDATE = "ninja.richter.soundfork.media.UPDATE"
         private const val ACTION_PLAY = "ninja.richter.soundfork.media.PLAY"
         private const val ACTION_PAUSE = "ninja.richter.soundfork.media.PAUSE"
@@ -251,11 +251,12 @@ class SoundForkMediaService : Service() {
                 ?: nowPlaying?.stationName?.takeIf { it.isNotBlank() }
                 ?: nowPlaying?.track?.takeIf { it.isNotBlank() }
                 ?: DEFAULT_TITLE
+            val defaultSubtitle = context.getString(R.string.media_default_subtitle)
             val subtitle = listOfNotNull(
                 nowPlaying?.track?.takeIf { it.isNotBlank() },
                 nowPlaying?.artist?.takeIf { it.isNotBlank() },
                 station?.description?.takeIf { it.isNotBlank() }
-            ).distinct().joinToString(" | ").ifBlank { DEFAULT_SUBTITLE }
+            ).distinct().joinToString(" | ").ifBlank { defaultSubtitle }
 
             val intent = Intent(context, SoundForkMediaService::class.java)
                 .setAction(ACTION_UPDATE)

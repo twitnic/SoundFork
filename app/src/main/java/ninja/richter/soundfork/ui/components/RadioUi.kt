@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -48,11 +49,15 @@ fun NowPlayingCard(
     nowPlaying: NowPlayingState?,
     station: RadioStation?
 ) {
+    val bufferingText = stringResource(R.string.buffering)
+    val playingText = stringResource(R.string.playing)
+    val pausedText = stringResource(R.string.paused)
+    val stoppedText = stringResource(R.string.stopped)
     val title = station?.name
         ?: nowPlaying?.stationName?.takeIf { it.isUsefulNowPlayingText() }
         ?: nowPlaying?.track?.takeIf { it.isUsefulNowPlayingText() }
         ?: nowPlaying?.location?.toDisplayStreamHost()
-        ?: "Kein Sender aktiv"
+        ?: stringResource(R.string.no_station_active)
     val detailText = listOfNotNull(
         nowPlaying?.track?.takeIf { it.isUsefulNowPlayingText() && it != title },
         nowPlaying?.artist?.takeIf { it.isUsefulNowPlayingText() },
@@ -60,12 +65,18 @@ fun NowPlayingCard(
         station?.description?.takeIf { it.isNotBlank() }
     ).distinct().joinToString(" | ").ifBlank {
         nowPlaying?.location?.toDisplayStreamHost()
-            ?: "Status wird aus /now_playing gelesen"
+            ?: stringResource(R.string.status_from_now_playing)
     }
     val sourceText = listOfNotNull(
-        nowPlaying?.source?.takeIf { it.isUsefulSourceText() }?.let { "Quelle: $it" },
-        nowPlaying?.playStatus?.toDisplayPlayStatus()
-    ).joinToString(" | ").ifBlank { "Wiedergabe auf dem Lautsprecher" }
+        nowPlaying?.source?.takeIf { it.isUsefulSourceText() }
+            ?.let { stringResource(R.string.source_prefix, it) },
+        nowPlaying?.playStatus?.toDisplayPlayStatus(
+            bufferingText = bufferingText,
+            playingText = playingText,
+            pausedText = pausedText,
+            stoppedText = stoppedText
+        )
+    ).joinToString(" | ").ifBlank { stringResource(R.string.playback_on_speaker) }
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -79,7 +90,7 @@ fun NowPlayingCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Aktuell läuft",
+                text = stringResource(R.string.currently_playing),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -140,13 +151,18 @@ private fun String.isUsefulSourceText(): Boolean {
         normalized != "STANDBY"
 }
 
-private fun String.toDisplayPlayStatus(): String? {
+private fun String.toDisplayPlayStatus(
+    bufferingText: String,
+    playingText: String,
+    pausedText: String,
+    stoppedText: String
+): String? {
     val normalized = trim().uppercase()
     return when {
-        normalized.contains("BUFFER") -> "Puffert"
-        normalized.contains("PLAY") -> "Läuft"
-        normalized.contains("PAUSE") -> "Pausiert"
-        normalized.contains("STOP") -> "Gestoppt"
+        normalized.contains("BUFFER") -> bufferingText
+        normalized.contains("PLAY") -> playingText
+        normalized.contains("PAUSE") -> pausedText
+        normalized.contains("STOP") -> stoppedText
         normalized.isBlank() -> null
         else -> trim()
     }
@@ -194,8 +210,8 @@ fun RecentRadioCarousel(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
-            text = "Zuletzt gehört",
+            Text(
+            text = stringResource(R.string.recently_heard),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -294,7 +310,11 @@ fun RecentRadioCard(
                         maxLines = 1
                     )
                     Text(
-                        text = if (active) "Aktiv" else "zuletzt $playedAt",
+                        text = if (active) {
+                            stringResource(R.string.active)
+                        } else {
+                            stringResource(R.string.last_played, playedAt)
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = secondaryColor,
                         maxLines = 1
@@ -349,14 +369,14 @@ fun RadioStationListCard(
                 value = searchQuery,
                 onValueChange = onSearchQueryChanged,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Sender suchen") },
+                label = { Text(stringResource(R.string.search_station)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
             )
             Spacer(modifier = Modifier.height(10.dp))
             if (displayedStations.isEmpty()) {
                 Text(
-                    text = "Keine Sender gefunden.",
+                    text = stringResource(R.string.no_stations_found),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -478,7 +498,7 @@ fun RadioStationRow(
                 shape = MaterialTheme.shapes.small
             ) {
                 Text(
-                    text = "Aktiv",
+                    text = stringResource(R.string.active),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold
@@ -536,18 +556,18 @@ fun TransportControlCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Steuerung",
+                text = stringResource(R.string.transport_controls),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TransportButton(label = "Play", key = "PLAY", enabled = enabled, onKey = onKey)
-                TransportButton(label = "Pause", key = "PAUSE", enabled = enabled, onKey = onKey)
-                TransportButton(label = "Stop", key = "STOP", enabled = enabled, onKey = onKey)
+                TransportButton(label = stringResource(R.string.play), key = "PLAY", enabled = enabled, onKey = onKey)
+                TransportButton(label = stringResource(R.string.pause), key = "PAUSE", enabled = enabled, onKey = onKey)
+                TransportButton(label = stringResource(R.string.stop), key = "STOP", enabled = enabled, onKey = onKey)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TransportButton(label = "Play/Pause", key = "PLAY_PAUSE", enabled = enabled, onKey = onKey)
-                TransportButton(label = "Power", key = "POWER", enabled = enabled, onKey = onKey)
+                TransportButton(label = stringResource(R.string.play_pause), key = "PLAY_PAUSE", enabled = enabled, onKey = onKey)
+                TransportButton(label = stringResource(R.string.power), key = "POWER", enabled = enabled, onKey = onKey)
             }
         }
     }
