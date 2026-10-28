@@ -11,6 +11,19 @@ Read-only Android-App fuer Bose SoundTouch im lokalen Netzwerk.
 - Min SDK: 34 (Android 14)
 - Target SDK: 36
 
+## Tablet- und Fensterlayouts
+
+Die Oberfläche richtet sich nach der verfügbaren Fensterbreite, auch bei Rotation und im geteilten Bildschirm:
+
+- Unter 600 dp: Menü und Mini-Player mit ausklappbaren Player- und Lautsprecheransichten.
+- Ab 600 dp: dauerhaft sichtbare, schmale Navigation links.
+- Ab 1000 dp: zusätzlicher Player rechts mit Wiedergabe, Lautstärke und Quellenwahl. Inhalt und Player scrollen unabhängig voneinander.
+- Ab 1200 dp: breite Navigation mit Lautsprechername und beschrifteten Menüzeilen.
+
+Die Verbindungssuche bleibt auf eine gut lesbare Breite begrenzt. Beim Wechsel zu einem breiten Fenster schließen offene Menü- und Playeransichten; die gewählte Seite und Lautstärke bleiben erhalten.
+
+`SoundTouchAdaptiveLayoutTest` prüft die Layouts und die Bedienung mit simulierten Lautsprecherdaten. Die Tests sind für schmale Fenster sowie Tablets in Hoch- und Querformat vorgesehen und decken auch große Schrift und das dunkle Design ab.
+
 ## Features
 
 - Netzwerksuche per

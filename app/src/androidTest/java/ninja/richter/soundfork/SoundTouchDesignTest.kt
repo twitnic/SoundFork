@@ -103,26 +103,31 @@ class SoundTouchDesignTest {
         compose.onNodeWithContentDescription(context.getString(R.string.pause)).performClick()
         compose.runOnIdle { assertEquals("PAUSE", lastKey) }
         compose.onNodeWithContentDescription(context.getString(R.string.play)).assertIsDisplayed()
-        compose.onNodeWithTag("mini_player_open").performClick()
-        compose.onNodeWithContentDescription(context.getString(R.string.close_player)).assertIsDisplayed()
-        snapshot("player-light")
-        compose.onNodeWithContentDescription(context.getString(R.string.close_player)).performClick()
-        compose.onNodeWithTag("speaker_controls_open").performClick()
+        val persistentPlayer = compose.onAllNodesWithTag("persistent_player").fetchSemanticsNodes().isNotEmpty()
+        if (!persistentPlayer) {
+            compose.onNodeWithTag("mini_player_open").performClick()
+            compose.onNodeWithContentDescription(context.getString(R.string.close_player)).assertIsDisplayed()
+            snapshot("player-light")
+            compose.onNodeWithContentDescription(context.getString(R.string.close_player)).performClick()
+            compose.onNodeWithTag("speaker_controls_open").performClick()
+        }
         compose.onNodeWithText(context.getString(R.string.volume)).assertIsDisplayed()
         snapshot("speaker-light")
         compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress))
-            .performSemanticsAction(SemanticsActions.SetProgress) { it(62f) }
+            .performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(62f) }
         compose.runOnIdle { assertEquals(62f, ui.value.volumeDraft, 0.01f) }
         compose.onNodeWithContentDescription(context.getString(R.string.enable_mute)).performClick()
         compose.runOnIdle { assertTrue(muteToggled) }
-        compose.onNodeWithText("AUX").performClick()
+        compose.onNodeWithText("AUX").performScrollTo().performClick()
         compose.runOnIdle { assertEquals("AUX", ui.value.currentSource?.source) }
-        compose.onNodeWithText(context.getString(R.string.device_settings)).performClick()
-        compose.onNodeWithText("SoundTouch 10").assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.device_settings)).performScrollTo().performClick()
+        compose.onNode(hasText("SoundTouch 10") and hasAnyAncestor(hasTestTag("page_content"))).assertIsDisplayed()
         snapshot("device-light")
-        compose.onNodeWithContentDescription(context.getString(R.string.open_menu)).performClick()
+        if (compose.onAllNodesWithTag("persistent_navigation").fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithContentDescription(context.getString(R.string.open_menu)).performClick()
+        }
         snapshot("menu-light")
-        compose.onNodeWithText(context.getString(R.string.nav_presets)).performClick()
+        compose.onNodeWithText(context.getString(R.string.nav_presets)).performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.saved_presets)).assertIsDisplayed()
         snapshot("presets-light")
     }

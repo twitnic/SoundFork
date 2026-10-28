@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ninja.richter.soundfork.data.NowPlayingState
@@ -31,33 +32,68 @@ import ninja.richter.soundfork.model.isPlaybackRunning
 fun SoundForkDrawer(
     selectedPage: SoundForkDevicePage,
     speakerName: String?,
-    onOpenRadio: () -> Unit,
-    onOpenDevice: () -> Unit,
-    onOpenSource: () -> Unit,
-    onOpenPresets: () -> Unit,
-    onOpenRecents: () -> Unit,
-    onOpenZones: () -> Unit,
-    onOpenDebug: () -> Unit,
+    onPage: (SoundForkDevicePage) -> Unit,
     onOpenDiscovery: () -> Unit
 ) {
     ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 24.dp)) {
+        SoundForkNavigationContent(selectedPage, speakerName, false, onPage, onOpenDiscovery)
+    }
+}
+
+@Composable
+fun SoundForkSidebar(
+    selectedPage: SoundForkDevicePage,
+    speakerName: String?,
+    expanded: Boolean,
+    onPage: (SoundForkDevicePage) -> Unit,
+    onOpenDiscovery: () -> Unit
+) {
+    Surface(Modifier.width(if (expanded) 224.dp else 96.dp).fillMaxHeight().testTag("persistent_navigation"),
+        color = MaterialTheme.colorScheme.surfaceContainer) {
+        SoundForkNavigationContent(selectedPage, speakerName, !expanded, onPage, onOpenDiscovery)
+    }
+}
+
+private val navigationPages = listOf(
+    SoundForkDevicePage.RADIO to TouchSymbol.Radio,
+    SoundForkDevicePage.PRESETS to TouchSymbol.Grid,
+    SoundForkDevicePage.RECENTS to TouchSymbol.Clock,
+    SoundForkDevicePage.DEVICE to TouchSymbol.Settings,
+    SoundForkDevicePage.SOURCE to TouchSymbol.Source,
+    SoundForkDevicePage.ZONES to TouchSymbol.Zone,
+    SoundForkDevicePage.DEBUG to TouchSymbol.Debug
+)
+
+@Composable
+private fun SoundForkNavigationContent(
+    selectedPage: SoundForkDevicePage,
+    speakerName: String?,
+    compact: Boolean,
+    onPage: (SoundForkDevicePage) -> Unit,
+    onOpenDiscovery: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 24.dp)) {
+        if (!compact) {
             Text(stringResource(R.string.app_name), Modifier.padding(horizontal = 28.dp),
-                style = MaterialTheme.typography.headlineMedium, letterSpacing = 3.sp)
+                style = MaterialTheme.typography.headlineMedium, letterSpacing = 3.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(speakerName ?: stringResource(R.string.connected_speaker),
                 Modifier.padding(start = 28.dp, top = 8.dp, end = 20.dp, bottom = 30.dp),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            DrawerRow(stringResource(R.string.nav_radio), TouchSymbol.Radio, selectedPage == SoundForkDevicePage.RADIO, onOpenRadio)
-            DrawerRow(stringResource(R.string.nav_presets), TouchSymbol.Grid, selectedPage == SoundForkDevicePage.PRESETS, onOpenPresets)
-            DrawerRow(stringResource(R.string.nav_recents), TouchSymbol.Clock, selectedPage == SoundForkDevicePage.RECENTS, onOpenRecents)
-            HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 18.dp))
-            DrawerRow(stringResource(R.string.nav_device), TouchSymbol.Settings, selectedPage == SoundForkDevicePage.DEVICE, onOpenDevice)
-            DrawerRow(stringResource(R.string.nav_source), TouchSymbol.Source, selectedPage == SoundForkDevicePage.SOURCE, onOpenSource)
-            DrawerRow(stringResource(R.string.nav_zones), TouchSymbol.Zone, selectedPage == SoundForkDevicePage.ZONES, onOpenZones)
-            DrawerRow(stringResource(R.string.nav_debug), TouchSymbol.Debug, selectedPage == SoundForkDevicePage.DEBUG, onOpenDebug)
-            HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 18.dp))
-            DrawerRow(stringResource(R.string.nav_search_speaker), TouchSymbol.Search, false, onOpenDiscovery)
         }
+        navigationPages.forEachIndexed { index, (page, symbol) ->
+            if (index == 3) HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+            if (compact) NavigationRailItem(selected = selectedPage == page, onClick = { onPage(page) },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                icon = { TouchIcon(symbol, null) }, label = { Text(stringResource(page.titleResource()), textAlign = TextAlign.Center) })
+            else DrawerRow(stringResource(page.titleResource()), symbol, selectedPage == page) { onPage(page) }
+        }
+        HorizontalDivider(Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+        if (compact) NavigationRailItem(selected = false, onClick = onOpenDiscovery,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            icon = { TouchIcon(TouchSymbol.Search, null) },
+            label = { Text(stringResource(R.string.nav_search_speaker), textAlign = TextAlign.Center) })
+        else DrawerRow(stringResource(R.string.nav_search_speaker), TouchSymbol.Search, false, onOpenDiscovery)
     }
 }
 
