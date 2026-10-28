@@ -1,34 +1,31 @@
 package ninja.richter.soundfork
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ninja.richter.soundfork.data.NowPlayingState
 import ninja.richter.soundfork.model.RadioStation
 import ninja.richter.soundfork.model.SoundForkDevicePage
 import ninja.richter.soundfork.model.SoundForkUiState
+import ninja.richter.soundfork.model.isPlaybackRunning
 
 @Composable
 fun SoundForkDrawer(
@@ -43,255 +40,128 @@ fun SoundForkDrawer(
     onOpenDebug: () -> Unit,
     onOpenDiscovery: () -> Unit
 ) {
-    ModalDrawerSheet {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = speakerName ?: stringResource(R.string.connected_speaker),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_radio)) },
-                selected = selectedPage == SoundForkDevicePage.RADIO,
-                onClick = onOpenRadio
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_device)) },
-                selected = selectedPage == SoundForkDevicePage.DEVICE,
-                onClick = onOpenDevice
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_source)) },
-                selected = selectedPage == SoundForkDevicePage.SOURCE,
-                onClick = onOpenSource
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_presets)) },
-                selected = selectedPage == SoundForkDevicePage.PRESETS,
-                onClick = onOpenPresets
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_recents)) },
-                selected = selectedPage == SoundForkDevicePage.RECENTS,
-                onClick = onOpenRecents
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_zones)) },
-                selected = selectedPage == SoundForkDevicePage.ZONES,
-                onClick = onOpenZones
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_debug)) },
-                selected = selectedPage == SoundForkDevicePage.DEBUG,
-                onClick = onOpenDebug
-            )
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.nav_search_speaker)) },
-                selected = false,
-                onClick = onOpenDiscovery
-            )
+    ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 24.dp)) {
+            Text(stringResource(R.string.app_name), Modifier.padding(horizontal = 28.dp),
+                style = MaterialTheme.typography.headlineMedium, letterSpacing = 3.sp)
+            Text(speakerName ?: stringResource(R.string.connected_speaker),
+                Modifier.padding(start = 28.dp, top = 8.dp, end = 20.dp, bottom = 30.dp),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            DrawerRow(stringResource(R.string.nav_radio), TouchSymbol.Radio, selectedPage == SoundForkDevicePage.RADIO, onOpenRadio)
+            DrawerRow(stringResource(R.string.nav_presets), TouchSymbol.Grid, selectedPage == SoundForkDevicePage.PRESETS, onOpenPresets)
+            DrawerRow(stringResource(R.string.nav_recents), TouchSymbol.Clock, selectedPage == SoundForkDevicePage.RECENTS, onOpenRecents)
+            HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 18.dp))
+            DrawerRow(stringResource(R.string.nav_device), TouchSymbol.Settings, selectedPage == SoundForkDevicePage.DEVICE, onOpenDevice)
+            DrawerRow(stringResource(R.string.nav_source), TouchSymbol.Source, selectedPage == SoundForkDevicePage.SOURCE, onOpenSource)
+            DrawerRow(stringResource(R.string.nav_zones), TouchSymbol.Zone, selectedPage == SoundForkDevicePage.ZONES, onOpenZones)
+            DrawerRow(stringResource(R.string.nav_debug), TouchSymbol.Debug, selectedPage == SoundForkDevicePage.DEBUG, onOpenDebug)
+            HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 18.dp))
+            DrawerRow(stringResource(R.string.nav_search_speaker), TouchSymbol.Search, false, onOpenDiscovery)
         }
     }
 }
+
+@Composable
+private fun DrawerRow(label: String, symbol: TouchSymbol, selected: Boolean, onClick: () -> Unit) {
+    val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+        .selectable(selected = selected, role = Role.Tab, onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(3.dp).height(32.dp).background(if (selected) color else Color.Transparent))
+        TouchIcon(symbol, null, Modifier.padding(start = 24.dp, end = 22.dp), tint = color)
+        Text(label, Modifier.weight(1f).padding(vertical = 16.dp, horizontal = 4.dp),
+            color = color, style = MaterialTheme.typography.titleSmall,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, letterSpacing = 1.1.sp)
+    }
+}
+
+@Composable
+fun playbackTitle(station: RadioStation?, nowPlaying: NowPlayingState?): String =
+    station?.name?.takeIf { it.isNotBlank() }
+        ?: nowPlaying?.stationName?.takeIf { it.isUsefulPlaybackText() }
+        ?: nowPlaying?.track?.takeIf { it.isUsefulPlaybackText() }
+        ?: nowPlaying?.location?.substringAfter("://")?.substringBefore('/')?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.no_station_active)
+
+@Composable
+fun playbackDetail(station: RadioStation?, nowPlaying: NowPlayingState?): String {
+    val state = nowPlaying?.playStatus.orEmpty().uppercase(java.util.Locale.ROOT)
+    val status = when {
+        state.contains("BUFFER") -> stringResource(R.string.buffering)
+        state.contains("PAUSE") -> stringResource(R.string.paused)
+        state.contains("STOP") || nowPlaying?.source == "STANDBY" -> stringResource(R.string.stopped)
+        state.contains("PLAY") -> stringResource(R.string.playing)
+        else -> null
+    }
+    val track = nowPlaying?.track?.takeIf { it.isUsefulPlaybackText() && it != station?.name }
+    return listOfNotNull(
+        track ?: station?.description?.takeIf { it.isNotBlank() },
+        nowPlaying?.artist?.takeIf { it.isUsefulPlaybackText() }, status
+    ).distinct().joinToString(" · ").ifBlank { stringResource(R.string.choose_station_from_list) }
+}
+
+fun String.isUsefulPlaybackText(): Boolean = trim().replace('_', ' ').uppercase(java.util.Locale.ROOT)
+    .let { it.isNotBlank() && it !in setOf("UPNP", "TRACK ONDEMAND", "TRACK ONDEMAND TRACK ONDEMAND", "ONDEMAND", "UNKNOWN") }
 
 @Composable
 fun MiniPlayerBar(
-    station: RadioStation?,
-    nowPlaying: NowPlayingState?,
-    status: String?,
-    isPlaying: Boolean,
-    enabled: Boolean,
-    onKey: (String) -> Unit
+    station: RadioStation?, nowPlaying: NowPlayingState?, isPlaying: Boolean,
+    enabled: Boolean, speakerName: String?, sourceName: String?,
+    onOpenPlayer: () -> Unit, onOpenSpeaker: () -> Unit, onKey: (String) -> Unit
 ) {
-    val bufferingText = stringResource(R.string.buffering)
-    val playingText = stringResource(R.string.playing)
-    val pausedText = stringResource(R.string.paused)
-    val stoppedText = stringResource(R.string.stopped)
-    val title = station?.name
-        ?: nowPlaying?.stationName?.takeIf { it.isUsefulMiniPlayerText() }
-        ?: nowPlaying?.track?.takeIf { it.isUsefulMiniPlayerText() }
-        ?: nowPlaying?.location?.toMiniPlayerStreamHost()
-        ?: stringResource(R.string.no_station_active)
-    val detail = listOfNotNull(
-        status?.takeIf { it.isNotBlank() },
-        nowPlaying?.playStatus?.toMiniPlayerPlayStatus(
-            bufferingText = bufferingText,
-            playingText = playingText,
-            pausedText = pausedText,
-            stoppedText = stoppedText
-        ),
-        station?.description?.takeIf { it.isNotBlank() },
-        nowPlaying?.streamType?.takeIf { it.isUsefulMiniPlayerText() }?.replace('_', ' '),
-        nowPlaying?.location?.toMiniPlayerStreamHost()
-    ).distinct().joinToString(" | ").ifBlank {
-        stringResource(R.string.choose_station_from_list)
-    }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-            .shadow(elevation = 8.dp, shape = MaterialTheme.shapes.extraLarge),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = title.firstOrNull()?.uppercaseChar()?.toString() ?: "♪",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+    val title = playbackTitle(station, nowPlaying)
+    val available = station != null || nowPlaying?.source?.let { it != "STANDBY" } == true
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer).navigationBarsPadding()) {
+        Row(Modifier.fillMaxWidth().background(Brush.horizontalGradient(
+            listOf(Color(0xFF80645F), Color(0xFFB99B91), Color(0xFF786065))
+        )).heightIn(min = 66.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).testTag("mini_player_open").clickable(role = Role.Button, onClickLabel = stringResource(R.string.open_player), onClick = onOpenPlayer)
+                .padding(start = 14.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TouchIcon(TouchSymbol.Up, null, tint = Color.White)
+                Column(Modifier.weight(1f)) {
+                    Text(title, color = Color.White, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(playbackDetail(station, nowPlaying), color = Color.White.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = detail,
-                    style = MaterialTheme.typography.bodySmall
-                )
+            PlaybackIconButton(isPlaying, enabled && available, onKey, light = true)
+            IconButton(onClick = { onKey("STOP") }, enabled = enabled && available) {
+                TouchIcon(TouchSymbol.Stop, stringResource(R.string.stop), tint = Color.White.copy(alpha = if (available) 1f else 0.4f))
             }
-            MiniPlayerButton(
-                label = if (isPlaying) "Ⅱ" else "▶",
-                key = if (isPlaying) "PAUSE" else "PLAY",
-                enabled = enabled,
-                onKey = onKey
-            )
-            MiniPlayerButton(label = "■", key = "STOP", enabled = enabled, onKey = onKey)
+            Spacer(Modifier.width(6.dp))
+        }
+        Row(Modifier.fillMaxWidth().testTag("speaker_controls_open").clickable(role = Role.Button, onClickLabel = stringResource(R.string.speaker_controls), onClick = onOpenSpeaker)
+            .padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SpeakerIllustration(Modifier.size(36.dp))
+            Column(Modifier.weight(1f)) {
+                Text(speakerName ?: stringResource(R.string.connected_speaker), style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sourceName ?: stringResource(R.string.playback_on_speaker), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            TouchIcon(TouchSymbol.Volume, null)
         }
     }
 }
 
-fun SoundForkUiState.isMiniPlayerPlaying(): Boolean {
-    val statusText = dlnaStreamStatus.orEmpty().trim().uppercase()
-    if (statusText.contains("STOP")) {
-        return false
-    }
-    if (statusText.contains("PLAY") || statusText.contains("GESTARTET") || statusText.contains("BUFFER")) {
-        return true
-    }
-
-    val playStatus = nowPlaying?.playStatus.orEmpty().trim().uppercase()
-    if (playStatus.contains("STOP")) {
-        return false
-    }
-    if (playStatus.contains("PLAY") || playStatus.contains("PAUSE") || playStatus.contains("BUFFER")) {
-        return true
-    }
-    return nowPlaying?.source.orEmpty().trim().uppercase() == "UPNP" &&
-        !nowPlaying?.location.isNullOrBlank()
-}
-
-private fun String.isUsefulMiniPlayerText(): Boolean {
-    val normalized = trim()
-        .replace('_', ' ')
-        .replace(Regex("\\s+"), " ")
-        .uppercase()
-    return normalized.isNotBlank() &&
-        normalized != "UPNP" &&
-        normalized != "TRACK ONDEMAND" &&
-        normalized != "TRACK ONDEMAND TRACK ONDEMAND" &&
-        normalized != "ONDEMAND" &&
-        normalized != "UNKNOWN"
-}
-
-private fun String.toMiniPlayerPlayStatus(
-    bufferingText: String,
-    playingText: String,
-    pausedText: String,
-    stoppedText: String
-): String? {
-    val normalized = trim().uppercase()
-    return when {
-        normalized.contains("BUFFER") -> bufferingText
-        normalized.contains("PLAY") -> playingText
-        normalized.contains("PAUSE") -> pausedText
-        normalized.contains("STOP") -> stoppedText
-        normalized.isBlank() -> null
-        else -> trim()
+@Composable
+fun PlaybackIconButton(isPlaying: Boolean, enabled: Boolean, onKey: (String) -> Unit, light: Boolean = false) {
+    val color = if (light) Color.White else MaterialTheme.colorScheme.onSurface
+    OutlinedIconButton(onClick = { onKey(if (isPlaying) "PAUSE" else "PLAY") }, enabled = enabled,
+        border = BorderStroke(1.dp, color.copy(alpha = if (enabled) 0.8f else 0.3f)), modifier = Modifier.size(44.dp)) {
+        TouchIcon(if (isPlaying) TouchSymbol.Pause else TouchSymbol.Play,
+            stringResource(if (isPlaying) R.string.pause else R.string.play), tint = color.copy(alpha = if (enabled) 1f else 0.4f))
     }
 }
 
-private fun String.toMiniPlayerStreamHost(): String? {
-    val value = trim()
-    if (value.isBlank()) {
-        return null
-    }
-    return value
-        .removePrefix("https://")
-        .removePrefix("http://")
-        .substringBefore('/')
-        .takeIf { it.isNotBlank() }
-}
+fun SoundForkUiState.isMiniPlayerPlaying(): Boolean = isPlaybackRunning()
 
 @Composable
-fun MiniPlayerButton(
-    label: String,
-    key: String,
-    enabled: Boolean,
-    onKey: (String) -> Unit
-) {
-    TextButton(
-        modifier = Modifier.width(38.dp),
-        onClick = { onKey(key) },
-        enabled = enabled
-    ) {
-        Text(label)
-    }
-}
-
-@Composable
-fun StatusMessage(
-    text: String,
-    isError: Boolean
-) {
-    val containerColor = if (isError) {
-        MaterialTheme.colorScheme.errorContainer
-    } else {
-        MaterialTheme.colorScheme.tertiaryContainer
-    }
-    val contentColor = if (isError) {
-        MaterialTheme.colorScheme.onErrorContainer
-    } else {
-        MaterialTheme.colorScheme.onTertiaryContainer
-    }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = containerColor,
-        contentColor = contentColor
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(14.dp),
-            style = MaterialTheme.typography.bodyMedium
-        )
+fun StatusMessage(text: String, isError: Boolean) {
+    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small,
+        color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant) {
+        Text(text, Modifier.padding(14.dp), style = MaterialTheme.typography.bodySmall)
     }
 }

@@ -184,4 +184,27 @@
     <string name="created_at">Erstellt: %1$s</string>
     <string name="app_version">App-Version: %1$s</string>
     <string name="network_search_failed">Netzwerksuche fehlgeschlagen</string>
+    <string name="open_menu">Menü öffnen</string>
+    <string name="open_player">Player öffnen</string>
+    <string name="close_player">Player schließen</string>
+    <string name="speaker_controls">Lautsprecher steuern</string>
+    <string name="device_settings">Geräteeinstellungen</string>
+    <string name="all_stations">Alle Sender</string>
+    <string name="favorites">Favoriten</string>
+    <string name="no_favorite_stations">Füge deine Lieblingssender mit dem Herz hinzu.</string>
+    <string name="add_favorite">Zu Favoriten hinzufügen</string>
+    <string name="remove_favorite">Aus Favoriten entfernen</string>
+    <string name="preset_hint">Deine Musik. Auf einen Tastendruck.</string>
+    <string name="preset_unassigned">Nicht belegt</string>
+    <string name="save_to_preset">Auf Preset %1$d speichern</string>
+    <string name="preset_confirm_title">Preset %1$d belegen?</string>
+    <string name="preset_confirm_body">Der aktuelle Stream wird auf diesem Speicherplatz abgelegt. Eine vorhandene Belegung wird ersetzt.</string>
+    <string name="cancel">Abbrechen</string>
+    <string name="save">Speichern</string>
+    <string name="your_speaker">Dein Sound. Dein Zuhause.</string>
+    <string name="connection_intro">Verbinde deinen SoundTouch und bring deine Lieblingssender in jeden Raum.</string>
+    <string name="speaker_request_timeout">Der Lautsprecher antwortet nicht rechtzeitig. Bitte versuche es erneut.</string>
+    <string name="speaker_request_rejected">Der Lautsprecher hat die Anfrage abgelehnt (HTTP %1$s).</string>
+    <string name="speaker_invalid_response">Unter dieser Adresse wurde kein gültiger SoundTouch-Lautsprecher gefunden.</string>
+    <string name="speaker_network_error">Die Verbindung zum Lautsprecher wurde unterbrochen. Bitte prüfe dein WLAN.</string>
 </resources>

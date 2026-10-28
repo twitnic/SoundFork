@@ -13,7 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,9 +45,9 @@ fun ManualConnectCard(
     enabled: Boolean
 ) {
     val tag = TAG
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
@@ -97,9 +97,9 @@ fun DiscoveredSpeakerCard(
     enabled: Boolean
 ) {
     val tag = TAG
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {

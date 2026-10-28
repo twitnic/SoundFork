@@ -20,7 +20,9 @@ import ninja.richter.soundfork.data.GabboUpdate
 import ninja.richter.soundfork.data.GabboUpdateType
 import ninja.richter.soundfork.data.NowPlayingState
 import ninja.richter.soundfork.data.PresetItem
-import ninja.richter.soundfork.data.RecentRadioStore
+import ninja.richter.soundfork.data.SavedSpeaker
+import ninja.richter.soundfork.data.SharedPreferencesSettingsRepository
+import ninja.richter.soundfork.data.SettingsRepository
 import ninja.richter.soundfork.data.SourceItem
 import ninja.richter.soundfork.data.SoundTouchDiscovery
 import ninja.richter.soundfork.data.SoundTouchGabboClient
@@ -30,9 +32,19 @@ import ninja.richter.soundfork.data.ZoneMember
 import ninja.richter.soundfork.data.ZoneState
 import ninja.richter.soundfork.model.RadioStation
 import ninja.richter.soundfork.model.SoundForkDevicePage
-import ninja.richter.soundfork.model.SoundForkScreenMode
 import ninja.richter.soundfork.model.SoundForkUiState
 import ninja.richter.soundfork.media.SoundForkMediaService
+import ninja.richter.soundfork.usecase.DeviceConnectionController
+import ninja.richter.soundfork.usecase.PlaybackRefreshController
+import ninja.richter.soundfork.model.PlaybackStateResolver
+import ninja.richter.soundfork.model.connectingTo
+import ninja.richter.soundfork.model.connectedTo
+import ninja.richter.soundfork.model.disconnected
+import ninja.richter.soundfork.model.hasActivePlayback
+import ninja.richter.soundfork.model.isPlaybackRunning
+import ninja.richter.soundfork.model.speakerErrorMessage
+import ninja.richter.soundfork.usecase.DeviceSessionController
+import ninja.richter.soundfork.core.runSuspendCatching
 import ninja.richter.soundfork.usecase.DeviceControlUseCase
 import ninja.richter.soundfork.usecase.GabboController
 import ninja.richter.soundfork.usecase.GabboStatusTexts
@@ -42,6 +54,7 @@ import ninja.richter.soundfork.usecase.ZoneUseCase
 import kotlin.math.roundToInt
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val sessions = DeviceSessionController(viewModelScope)
     private val repository = SoundTouchRepository()
     private val deviceControlUseCase = DeviceControlUseCase(repository)
     private val playbackUseCase = PlaybackUseCase(repository)
@@ -49,18 +62,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val zoneUseCase = ZoneUseCase(repository)
     private val discovery = SoundTouchDiscovery(application.applicationContext, repository)
     private val gabboController = GabboController(SoundTouchGabboClient())
-    private val preferences = application.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-    private val recentRadioStore = RecentRadioStore(preferences)
+    private val settings: SettingsRepository = SharedPreferencesSettingsRepository(application)
+    private val connection = DeviceConnectionController(sessions, repository::loadSnapshot)
+    private val playbackRefresh = PlaybackRefreshController(sessions, playbackUseCase::readNowPlaying)
+    private val playbackResolver = PlaybackStateResolver()
     private val initialRadioStations = loadRadioStations(application)
-    private val initialFavoriteRadioStreamUrls = loadFavoriteRadioStreamUrls()
-    private var nowPlayingRefreshJob: Job? = null
+    private val initialFavoriteRadioStreamUrls = settings.favoriteStreamUrls()
     private var gabboSnapshotRefreshJob: Job? = null
 
     private val _uiState = MutableStateFlow(
         SoundForkUiState(
             radioStations = initialRadioStations,
             favoriteRadioStreamUrls = initialFavoriteRadioStreamUrls,
-            recentRadioStations = recentRadioStore.load(initialRadioStations)
+            recentRadioStations = settings.recentStations(initialRadioStations)
         )
     )
     val uiState: StateFlow<SoundForkUiState> = _uiState.asStateFlow()
@@ -70,8 +84,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
-        val lastHost = preferences.getString(KEY_LAST_HOST, null)?.takeIf { it.isNotBlank() }
-        val lastPort = preferences.getInt(KEY_LAST_PORT, SoundTouchRepository.DEFAULT_PORT)
+        val lastSpeaker = settings.lastSpeaker()
+        val lastHost = lastSpeaker?.host
+        val lastPort = lastSpeaker?.port ?: SoundTouchRepository.DEFAULT_PORT
         _uiState.update {
             it.copy(
                 lastSavedHost = lastHost,
@@ -82,7 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onManualHostInputChanged(value: String) {
-        _uiState.update { it.copy(manualHostInput = value.trim()) }
+        _uiState.update { it.copy(manualHostInput = value.trim(), discoveryError = null, snapshotError = null) }
     }
 
     fun onRadioSearchQueryChanged(value: String) {
@@ -94,15 +109,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (key.isBlank()) {
             return
         }
-        _uiState.update { state ->
-            val updatedFavorites = if (key in state.favoriteRadioStreamUrls) {
-                state.favoriteRadioStreamUrls - key
-            } else {
-                state.favoriteRadioStreamUrls + key
-            }
-            persistFavoriteRadioStreamUrls(updatedFavorites)
-            state.copy(favoriteRadioStreamUrls = updatedFavorites)
+        val favorites = _uiState.value.favoriteRadioStreamUrls
+        val updatedFavorites = if (key in favorites) {
+            favorites - key
+        } else {
+            favorites + key
         }
+        settings.saveFavoriteStreamUrls(updatedFavorites)
+        _uiState.update { it.copy(favoriteRadioStreamUrls = updatedFavorites) }
     }
 
     fun discoverSpeakers() {
@@ -119,7 +133,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
 
-            val result = runCatching { discovery.discover() }
+            val result = runSuspendCatching { discovery.discover() }
             result.onSuccess { speakers ->
                 val visibleSpeakers = speakers.filter { speaker ->
                     !speaker.type.isNullOrBlank() || !speaker.deviceId.isNullOrBlank()
@@ -141,7 +155,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isDiscovering = false,
-                        discoveryError = throwable.message ?: str(R.string.network_search_failed)
+                        discoveryError = throwable.speakerErrorMessage(getApplication(), R.string.network_search_failed)
                     )
                 }
             }
@@ -152,7 +166,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val host = _uiState.value.manualHostInput.trim()
         if (host.isBlank()) {
             Log.w(TAG, "connectUsingManualHost() ignored: empty input")
-            _uiState.update { it.copy(snapshotError = str(R.string.host_required)) }
+            _uiState.update { it.copy(discoveryError = str(R.string.host_required)) }
             return
         }
         Log.i(TAG, "connectUsingManualHost() host=$host")
@@ -182,129 +196,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         port: Int = SoundTouchRepository.DEFAULT_PORT,
         fallbackToDiscoveryOnFailure: Boolean
     ) {
-        Log.i(
-            TAG,
-            "connectToHost() start host=$host port=$port fallbackToDiscovery=$fallbackToDiscoveryOnFailure"
-        )
+        stopNowPlayingRefresh()
         stopGabboUpdates(clearStatus = false)
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    screenMode = SoundForkScreenMode.DEVICE,
-                    devicePage = SoundForkDevicePage.RADIO,
-                    selectedHost = host,
-                    selectedPort = port,
-                    isLoadingSnapshot = true,
-                    isConnectingLastSpeaker = fallbackToDiscoveryOnFailure,
-                    snapshotError = null,
-                    presetStatus = null,
-                    sourceStatus = null,
-                    realtimeStatus = str(R.string.live_updates_connecting),
-                    realtimeError = null,
-                    endpointResults = emptyList()
-                )
-            }
-
-            val snapshotResult = runCatching {
-                repository.loadSnapshot(host, port)
-            }
-
-            snapshotResult.onSuccess { snapshot ->
-                Log.i(TAG, "connectToHost() success host=$host summary=${snapshot.summary?.name}")
-                saveLastSpeaker(host, port)
-                val initialVolume = snapshot.volumeState
-                    ?.targetVolume
-                    ?: snapshot.volumeState?.actualVolume
-                    ?: 0
-                val initialBass = snapshot.bassState
-                    ?.targetBass
-                    ?: snapshot.bassState?.actualBass
-                    ?: 0
-                val initialTreble = snapshot.toneControlState
-                    ?.treble
-                    ?.value
-                    ?: 0
-                val currentRadioStation = radioStationFromNowPlaying(
-                    nowPlaying = snapshot.nowPlaying,
-                    stations = _uiState.value.radioStations
-                )
-                _uiState.update {
-                    it.copy(
-                        isLoadingSnapshot = false,
-                        isConnectingLastSpeaker = false,
-                        selectedHost = host,
-                        selectedPort = port,
-                        selectedSummary = snapshot.summary,
-                        selectedVolume = snapshot.volumeState,
-                        selectedBass = snapshot.bassState,
-                        selectedToneControls = snapshot.toneControlState,
-                        currentRadioStation = currentRadioStation,
-                        nowPlaying = snapshot.nowPlaying,
-                        presets = snapshot.presets,
-                        boseRecents = snapshot.recents,
-                        sources = snapshot.sources,
-                        currentSource = snapshot.currentSource,
-                        zoneState = snapshot.zoneState,
-                        zoneXml = snapshot.zoneXml,
-                        deviceNameDraft = snapshot.summary?.name.orEmpty(),
-                        volumeDraft = initialVolume.toFloat(),
-                        bassDraft = initialBass.toFloat(),
-                        trebleDraft = initialTreble.toFloat(),
-                        endpointResults = snapshot.endpointResults,
-                        snapshotError = null
-                    )
-                }
+        SoundForkMediaService.stop(getApplication())
+        connection.connect(
+            host, port,
+            onConnecting = { session ->
+                _uiState.update { it.connectingTo(session.host, session.port, fallbackToDiscoveryOnFailure, str(R.string.live_updates_connecting)) }
+            },
+            onConnected = { session, snapshot ->
+                saveLastSpeaker(session.host, session.port)
+                val station = radioStationFromNowPlaying(snapshot.nowPlaying, _uiState.value.radioStations)
+                _uiState.update { it.connectedTo(session.host, session.port, snapshot, station) }
                 updateMediaNotification()
-                startGabboUpdates(host, port)
-                startNowPlayingRefresh(host, port)
-                currentRadioStation?.let(::recordRecentRadioStation)
-            }.onFailure { throwable ->
-                Log.w(TAG, "connectToHost() failed host=$host error=${throwable.message}", throwable)
+                startGabboUpdates(session.host, session.port)
+                startNowPlayingRefresh(session.host, session.port)
+                station?.let(::recordRecentRadioStation)
+            },
+            onFailure = { throwable ->
+                Log.w(TAG, "connectToHost() failed host=$host port=$port", throwable)
                 stopGabboUpdates(clearStatus = false)
-                _uiState.update {
-                    it.copy(
-                        isLoadingSnapshot = false,
-                        isConnectingLastSpeaker = false,
-                        screenMode = if (fallbackToDiscoveryOnFailure) {
-                            SoundForkScreenMode.DISCOVERY
-                        } else {
-                            SoundForkScreenMode.DEVICE
-                        },
-                        selectedHost = if (fallbackToDiscoveryOnFailure) null else host,
-                        selectedPort = if (fallbackToDiscoveryOnFailure) {
-                            SoundTouchRepository.DEFAULT_PORT
-                        } else {
-                            port
-                        },
-                        selectedSummary = null,
-                        selectedVolume = null,
-                        selectedBass = null,
-                        selectedToneControls = null,
-                        currentRadioStation = null,
-                        nowPlaying = null,
-                        presets = emptyList(),
-                        boseRecents = emptyList(),
-                        sources = emptyList(),
-                        currentSource = null,
-                        zoneState = null,
-                        zoneXml = null,
-                        deviceNameDraft = "",
-                        trebleDraft = 0f,
-                        endpointResults = emptyList(),
-                        snapshotError = if (fallbackToDiscoveryOnFailure) {
-                            null
-                        } else {
-                            throwable.message ?: str(R.string.device_read_failed)
-                        },
-                        realtimeStatus = null,
-                        realtimeError = null
-                    )
-                }
-                if (fallbackToDiscoveryOnFailure) {
-                    stopNowPlayingRefresh()
-                }
+                _uiState.update { it.disconnected(if (fallbackToDiscoveryOnFailure) null else throwable.speakerErrorMessage(getApplication(), R.string.device_read_failed)) }
             }
-        }
+        )
     }
 
     fun onVolumeDraftChanged(value: Float) {
@@ -322,7 +236,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun applyDeviceName() {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isRenamingDevice) {
+        if (state.isLoadingSnapshot || state.isRenamingDevice) {
             return
         }
         val name = state.deviceNameDraft.trim()
@@ -333,9 +247,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val port = state.selectedPort
 
         Log.i(TAG, "applyDeviceName() host=$host port=$port name=$name")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update { it.copy(isRenamingDevice = true, snapshotError = null) }
-            runCatching {
+            runSuspendCatching {
                 deviceControlUseCase.renameDevice(host = host, port = port, name = name)
             }.onSuccess { summary ->
                 _uiState.update {
@@ -350,7 +264,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isRenamingDevice = false,
-                        snapshotError = throwable.message ?: str(R.string.device_name_failed)
+                        snapshotError = throwable.speakerErrorMessage(getApplication(), R.string.device_name_failed)
                     )
                 }
             }
@@ -360,7 +274,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun applyVolume() {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isApplyingVolume) {
+        if (state.isLoadingSnapshot || state.isApplyingVolume) {
             return
         }
         val targetVolume = state.volumeDraft.roundToInt().coerceIn(0, 100)
@@ -368,9 +282,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val port = state.selectedPort
 
         Log.i(TAG, "applyVolume() host=$host port=$port targetVolume=$targetVolume mute=$mute")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update { it.copy(isApplyingVolume = true, snapshotError = null) }
-            runCatching {
+            runSuspendCatching {
                 deviceControlUseCase.setVolume(
                     host = host,
                     port = port,
@@ -390,7 +304,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingVolume = false,
-                        snapshotError = throwable.message ?: str(R.string.volume_failed)
+                        snapshotError = throwable.speakerErrorMessage(getApplication(), R.string.volume_failed)
                     )
                 }
             }
@@ -400,7 +314,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleMute() {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isApplyingVolume) {
+        if (state.isLoadingSnapshot || state.isApplyingVolume) {
             return
         }
         val port = state.selectedPort
@@ -408,9 +322,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val currentTarget = state.volumeDraft.roundToInt().coerceIn(0, 100)
 
         Log.i(TAG, "toggleMute() host=$host port=$port targetMute=$targetMute")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update { it.copy(isApplyingVolume = true, snapshotError = null) }
-            runCatching {
+            runSuspendCatching {
                 deviceControlUseCase.setMute(
                     host = host,
                     port = port,
@@ -430,7 +344,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingVolume = false,
-                        snapshotError = throwable.message ?: str(R.string.mute_failed)
+                        snapshotError = throwable.speakerErrorMessage(getApplication(), R.string.mute_failed)
                     )
                 }
             }
@@ -446,16 +360,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun applyBass() {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isApplyingBass) {
+        if (state.isLoadingSnapshot || state.isApplyingBass) {
             return
         }
         val port = state.selectedPort
         val targetBass = state.bassDraft.roundToInt().coerceIn(-9, 9)
 
         Log.i(TAG, "applyBass() host=$host port=$port targetBass=$targetBass")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update { it.copy(isApplyingBass = true, snapshotError = null) }
-            runCatching {
+            runSuspendCatching {
                 deviceControlUseCase.setBass(
                     host = host,
                     port = port,
@@ -474,7 +388,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingBass = false,
-                        snapshotError = throwable.message ?: str(R.string.bass_failed)
+                        snapshotError = throwable.speakerErrorMessage(getApplication(), R.string.bass_failed)
                     )
                 }
             }
@@ -493,7 +407,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun applyTreble() {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isApplyingToneControls) {
+        if (state.isLoadingSnapshot || state.isApplyingToneControls) {
             return
         }
         val port = state.selectedPort
@@ -503,9 +417,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val targetTreble = state.trebleDraft.roundToInt().coerceIn(min, max)
 
         Log.i(TAG, "applyTreble() host=$host port=$port targetTreble=$targetTreble")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update { it.copy(isApplyingToneControls = true, snapshotError = null) }
-            runCatching {
+            runSuspendCatching {
                 deviceControlUseCase.setTreble(
                     host = host,
                     port = port,
@@ -524,7 +438,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isApplyingToneControls = false,
-                        snapshotError = throwable.message ?: str(R.string.treble_failed)
+                        snapshotError = throwable.speakerErrorMessage(getApplication(), R.string.treble_failed)
                     )
                 }
             }
@@ -557,20 +471,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(debugEndpointStatus = str(R.string.api_path_required)) }
             return
         }
-        if (state.isTestingDebugEndpoint) {
+        if (state.isLoadingSnapshot || state.isTestingDebugEndpoint) {
             return
         }
         val port = state.selectedPort
 
         Log.i(TAG, "testDebugEndpoint() host=$host port=$port path=$path")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isTestingDebugEndpoint = true,
                     debugEndpointStatus = null
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 repository.readEndpoint(host = host, port = port, path = path)
             }.onSuccess { result ->
                 _uiState.update {
@@ -585,7 +499,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isTestingDebugEndpoint = false,
-                        debugEndpointStatus = throwable.message ?: str(R.string.api_test_failed)
+                        debugEndpointStatus = throwable.speakerErrorMessage(getApplication(), R.string.api_test_failed)
                     )
                 }
             }
@@ -623,19 +537,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isStartingDlnaStream) {
+        if (state.isLoadingSnapshot || state.isStartingDlnaStream) {
             return
         }
 
         Log.i(TAG, "playDlnaStream() host=$host url=$streamUrl")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isStartingDlnaStream = true,
                     dlnaStreamStatus = null
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 playbackUseCase.playDlnaStream(
                     host = host,
                     streamUrl = streamUrl
@@ -655,7 +569,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isStartingDlnaStream = false,
-                        dlnaStreamStatus = throwable.message ?: str(R.string.dlna_failed)
+                        dlnaStreamStatus = throwable.speakerErrorMessage(getApplication(), R.string.dlna_failed)
                     )
                 }
             }
@@ -665,14 +579,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun sendTransportKey(key: String) {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isSendingTransportKey) {
+        if (state.isLoadingSnapshot || state.isSendingTransportKey) {
             return
         }
         val port = state.selectedPort
         val normalizedKey = key.trim().uppercase()
 
         Log.i(TAG, "sendTransportKey() host=$host port=$port key=$normalizedKey")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isSendingTransportKey = true,
@@ -680,7 +594,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     dlnaStreamStatus = null
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 if (normalizedKey in DLNA_TRANSPORT_KEYS) {
                     repository.sendDlnaTransportAction(
                         host = host,
@@ -711,7 +625,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingTransportKey = false,
-                        snapshotError = throwable.message ?: str(R.string.key_failed)
+                        snapshotError = throwable.speakerErrorMessage(getApplication(), R.string.key_failed)
                     )
                 }
             }
@@ -721,7 +635,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun selectSource(source: SourceItem) {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isSelectingSource) {
+        if (state.isLoadingSnapshot || state.isSelectingSource) {
             return
         }
         val port = state.selectedPort
@@ -729,7 +643,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             TAG,
             "selectSource() host=$host port=$port source=${source.source} account=${source.sourceAccount}"
         )
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isSelectingSource = true,
@@ -737,7 +651,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     sourceStatus = null
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 repository.selectSource(host = host, port = port, source = source)
             }.onSuccess {
                 _uiState.update {
@@ -752,7 +666,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSelectingSource = false,
-                        sourceStatus = throwable.message ?: str(R.string.source_select_failed)
+                        sourceStatus = throwable.speakerErrorMessage(getApplication(), R.string.source_select_failed)
                     )
                 }
             }
@@ -763,13 +677,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val id = preset?.id?.coerceIn(1, 6) ?: presetId.coerceIn(1, 6)
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isSendingPresetCommand) {
+        if (state.isLoadingSnapshot || state.isSendingPresetCommand) {
             return
         }
         val port = state.selectedPort
 
         Log.i(TAG, "playPreset() host=$host port=$port presetId=$id")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isSendingPresetCommand = true,
@@ -777,7 +691,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     presetStatus = null
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 presetUseCase.playPreset(host = host, port = port, preset = preset, presetId = id)
                 refreshNowPlayingOnce(host, port)
             }.onSuccess {
@@ -794,7 +708,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingPresetCommand = false,
-                        presetStatus = throwable.message ?: str(R.string.preset_start_failed)
+                        presetStatus = throwable.speakerErrorMessage(getApplication(), R.string.preset_start_failed)
                     )
                 }
             }
@@ -804,13 +718,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun playBoseRecent(recent: BoseRecentItem) {
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isSendingRecentCommand) {
+        if (state.isLoadingSnapshot || state.isSendingRecentCommand) {
             return
         }
         val port = state.selectedPort
 
         Log.i(TAG, "playBoseRecent() host=$host port=$port source=${recent.source} location=${recent.location}")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isSendingRecentCommand = true,
@@ -818,7 +732,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     recentStatus = null
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 presetUseCase.playRecent(host = host, port = port, recent = recent)
                 refreshNowPlayingOnce(host, port)
             }.onSuccess {
@@ -835,7 +749,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isSendingRecentCommand = false,
-                        recentStatus = throwable.message ?: str(R.string.recent_start_failed)
+                        recentStatus = throwable.speakerErrorMessage(getApplication(), R.string.recent_start_failed)
                     )
                 }
             }
@@ -846,13 +760,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val id = presetId.coerceIn(1, 6)
         val state = _uiState.value
         val host = state.selectedHost ?: return
-        if (state.isSendingPresetCommand) {
+        if (state.isLoadingSnapshot || state.isSendingPresetCommand) {
             return
         }
         val port = state.selectedPort
 
         Log.i(TAG, "saveCurrentAsPreset() host=$host port=$port presetId=$id")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isSendingPresetCommand = true,
@@ -860,32 +774,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     presetStatus = str(R.string.preset_saving, id)
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 presetUseCase.saveCurrentAsPreset(host = host, port = port, presetId = id)
                 repository.loadSnapshot(host, port)
             }.onSuccess { snapshot ->
-                val currentRadioStation = radioStationFromNowPlaying(
-                    nowPlaying = snapshot.nowPlaying,
-                    stations = _uiState.value.radioStations
-                )
                 _uiState.update {
                     it.copy(
                         isSendingPresetCommand = false,
                         presets = snapshot.presets,
                         boseRecents = snapshot.recents,
-                        nowPlaying = snapshot.nowPlaying,
-                        currentRadioStation = currentRadioStation ?: it.currentRadioStation,
                         zoneState = snapshot.zoneState,
                         endpointResults = snapshot.endpointResults,
                         presetStatus = str(R.string.preset_saved, id)
                     )
                 }
+                refreshNowPlayingOnce(host, port)
             }.onFailure { throwable ->
                 Log.w(TAG, "saveCurrentAsPreset() failed host=$host presetId=$id error=${throwable.message}", throwable)
                 _uiState.update {
                     it.copy(
                         isSendingPresetCommand = false,
-                        presetStatus = throwable.message ?: str(R.string.preset_save_failed)
+                        presetStatus = throwable.speakerErrorMessage(getApplication(), R.string.preset_save_failed)
                     )
                 }
             }
@@ -947,13 +856,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { it.copy(zoneStatus = str(R.string.zone_master_device_id_missing)) }
                 return
             }
-        if (state.isUpdatingZone) {
+        if (state.isLoadingSnapshot || state.isUpdatingZone) {
             return
         }
         val port = state.selectedPort
 
         Log.i(TAG, "runZoneCommand() host=$host port=$port master=$masterDeviceId action=$actionLabel")
-        viewModelScope.launch {
+        sessions.launch {
             _uiState.update {
                 it.copy(
                     isUpdatingZone = true,
@@ -961,7 +870,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     snapshotError = null
                 )
             }
-            runCatching {
+            runSuspendCatching {
                 val zoneState = command(host, port, masterDeviceId)
                 val snapshot = repository.loadSnapshot(host, port)
                 zoneState to snapshot
@@ -981,7 +890,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update {
                     it.copy(
                         isUpdatingZone = false,
-                        zoneStatus = throwable.message ?: str(R.string.zone_update_failed)
+                        zoneStatus = throwable.speakerErrorMessage(getApplication(), R.string.zone_update_failed)
                     )
                 }
             }
@@ -990,15 +899,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openDiscoveryScreen() {
         Log.i(TAG, "openDiscoveryScreen()")
+        sessions.close()
         stopNowPlayingRefresh()
         stopGabboUpdates(clearStatus = true)
         SoundForkMediaService.stop(getApplication())
-        _uiState.update {
-            it.copy(
-                screenMode = SoundForkScreenMode.DISCOVERY,
-                snapshotError = null
-            )
-        }
+        _uiState.update { it.disconnected() }
     }
 
     fun openRadioPage() {
@@ -1050,31 +955,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun connectToLastSpeakerIfAvailable() {
-        val host = preferences.getString(KEY_LAST_HOST, null)?.takeIf { it.isNotBlank() } ?: return
-        val port = preferences.getInt(KEY_LAST_PORT, SoundTouchRepository.DEFAULT_PORT)
-        Log.i(TAG, "connectToLastSpeakerIfAvailable() host=$host port=$port")
-        connectToHost(
-            host = host,
-            port = port,
-            fallbackToDiscoveryOnFailure = true
-        )
+        val speaker = settings.lastSpeaker() ?: return
+        connectToHost(speaker.host, speaker.port, fallbackToDiscoveryOnFailure = true)
     }
 
     private fun saveLastSpeaker(host: String, port: Int) {
-        preferences.edit()
-            .putString(KEY_LAST_HOST, host)
-            .putInt(KEY_LAST_PORT, port)
-            .apply()
-        _uiState.update {
-            it.copy(
-                lastSavedHost = host,
-                lastSavedPort = port
-            )
-        }
-        Log.d(TAG, "saveLastSpeaker() host=$host port=$port")
+        settings.saveLastSpeaker(SavedSpeaker(host, port))
+        _uiState.update { it.copy(lastSavedHost = host, lastSavedPort = port) }
     }
 
     private fun startGabboUpdates(host: String, port: Int) {
+        val session = sessions.current ?: return
         stopGabboUpdates(clearStatus = false)
         gabboController.connect(
             host = host,
@@ -1086,16 +977,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 pollingActive = { message -> str(R.string.polling_active_suffix, message) }
             ),
             onStatus = { status ->
-                _uiState.update {
-                    if (it.selectedHost == host && it.selectedPort == port) {
-                        it.copy(realtimeStatus = status, realtimeError = null)
-                    } else {
-                        it
-                    }
+                sessions.launch(session) {
+                    _uiState.update { it.copy(realtimeStatus = status, realtimeError = null) }
                 }
             },
             onUpdate = { update ->
-                handleGabboUpdate(host, port, update)
+                sessions.launch(session) { handleGabboUpdate(host, port, update) }
             }
         )
     }
@@ -1133,7 +1020,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshBassFromGabbo(host, port, update)
         }
         if (GabboUpdateType.NOW_PLAYING in update.types) {
-            viewModelScope.launch {
+            sessions.launch {
                 refreshNowPlayingOnce(host, port)
             }
         }
@@ -1150,9 +1037,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun refreshVolumeFromGabbo(host: String, port: Int, update: GabboUpdate) {
-        viewModelScope.launch {
+        sessions.launch {
             val volume = SoundTouchXml.parseVolume(update.rawXml)
-                ?: runCatching {
+                ?: runSuspendCatching {
                     repository.readVolumeStateOrNull(host, port)
                 }.onFailure { throwable ->
                     Log.d(TAG, "refreshVolumeFromGabbo() failed host=$host error=${throwable.message}")
@@ -1172,9 +1059,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun refreshBassFromGabbo(host: String, port: Int, update: GabboUpdate) {
-        viewModelScope.launch {
+        sessions.launch {
             val bass = SoundTouchXml.parseBass(update.rawXml)
-                ?: runCatching {
+                ?: runSuspendCatching {
                     repository.readBassStateOrNull(host, port)
                 }.onFailure { throwable ->
                     Log.d(TAG, "refreshBassFromGabbo() failed host=$host error=${throwable.message}")
@@ -1195,18 +1082,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun scheduleSnapshotRefreshFromGabbo(host: String, port: Int) {
         gabboSnapshotRefreshJob?.cancel()
-        gabboSnapshotRefreshJob = viewModelScope.launch {
+        gabboSnapshotRefreshJob = sessions.launch {
             delay(GABBO_REFRESH_DEBOUNCE_MS)
-            val snapshot = runCatching {
+            val snapshot = runSuspendCatching {
                 repository.loadSnapshot(host, port)
             }.onFailure { throwable ->
                 Log.d(TAG, "scheduleSnapshotRefreshFromGabbo() failed host=$host error=${throwable.message}")
             }.getOrNull() ?: return@launch
 
-            val currentRadioStation = radioStationFromNowPlaying(
-                nowPlaying = snapshot.nowPlaying,
-                stations = _uiState.value.radioStations
-            )
             _uiState.update {
                 if (it.selectedHost == host && it.selectedPort == port) {
                     it.copy(
@@ -1218,12 +1101,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             snapshot.toneControlState?.treble?.value
                                 ?: it.trebleDraft.toInt()
                         ).toFloat(),
-                        nowPlaying = snapshot.nowPlaying ?: it.nowPlaying,
-                        currentRadioStation = currentRadioStation ?: it.currentRadioStation,
                         presets = snapshot.presets,
                         boseRecents = snapshot.recents,
                         sources = snapshot.sources,
-                        currentSource = snapshot.currentSource ?: it.currentSource,
                         zoneState = snapshot.zoneState,
                         zoneXml = snapshot.zoneXml,
                         endpointResults = snapshot.endpointResults
@@ -1232,73 +1112,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     it
                 }
             }
-            updateMediaNotification()
+            refreshNowPlayingOnce(host, port)
         }
     }
 
     private fun startNowPlayingRefresh(host: String, port: Int) {
-        nowPlayingRefreshJob?.cancel()
-        nowPlayingRefreshJob = viewModelScope.launch {
-            while (true) {
-                delay(NOW_PLAYING_REFRESH_INTERVAL_MS)
-                refreshNowPlayingOnce(host, port)
-            }
-        }
+        playbackRefresh.startPolling(host, port, NOW_PLAYING_REFRESH_INTERVAL_MS) { refreshNowPlayingOnce(host, port) }
     }
 
-    private fun stopNowPlayingRefresh() {
-        nowPlayingRefreshJob?.cancel()
-        nowPlayingRefreshJob = null
-    }
+    private fun stopNowPlayingRefresh() = playbackRefresh.stopPolling()
 
     private suspend fun refreshNowPlayingOnce(host: String, port: Int) {
-        val state = _uiState.value
-        if (state.selectedHost != host || state.selectedPort != port) {
-            return
-        }
-        val nowPlaying = runCatching {
-            playbackUseCase.readNowPlaying(host = host, port = port)
-        }.onFailure { throwable ->
-            Log.d(TAG, "refreshNowPlayingOnce() failed host=$host error=${throwable.message}")
-        }.getOrNull()
-
-        if (nowPlaying == null) {
-            markPlaybackUnavailable(str(R.string.speaker_unreachable))
-            return
-        }
-
-        if (!nowPlaying.isActivePlayback()) {
-            _uiState.update {
-                it.copy(
-                    nowPlaying = nowPlaying,
-                    currentRadioStation = null,
-                    dlnaStreamStatus = str(R.string.no_active_playback)
-                )
+        playbackRefresh.refresh(host, port) { result ->
+            val nowPlaying = result.getOrNull()
+            if (nowPlaying == null) {
+                markPlaybackUnavailable(result.exceptionOrNull()?.speakerErrorMessage(getApplication(), R.string.speaker_unreachable) ?: str(R.string.speaker_unreachable))
+            } else {
+                val active = nowPlaying.hasActivePlayback()
+                val station = radioStationFromNowPlaying(nowPlaying, _uiState.value.radioStations)
+                _uiState.update {
+                    it.copy(
+                        nowPlaying = nowPlaying,
+                        currentRadioStation = station,
+                        currentSource = nowPlaying.source?.let { source -> SourceItem(source, nowPlaying.sourceAccount) },
+                        dlnaStreamStatus = if (active) null else str(R.string.no_active_playback)
+                    )
+                }
+                updateMediaNotification()
             }
-            SoundForkMediaService.stop(getApplication())
-            return
         }
-
-        val currentRadioStation = radioStationFromNowPlaying(
-            nowPlaying = nowPlaying,
-            stations = _uiState.value.radioStations
-        )
-        val currentSource = nowPlaying.source
-            ?.takeIf { it.isNotBlank() }
-            ?.let { source ->
-                SourceItem(
-                    source = source,
-                    sourceAccount = nowPlaying.sourceAccount
-                )
-            }
-        _uiState.update {
-            it.copy(
-                nowPlaying = nowPlaying,
-                currentRadioStation = currentRadioStation ?: it.currentRadioStation,
-                currentSource = currentSource ?: it.currentSource
-            )
-        }
-        updateMediaNotification()
     }
 
     private fun markPlaybackUnavailable(status: String) {
@@ -1315,13 +1157,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun updateMediaNotification() {
         val state = _uiState.value
         val host = state.selectedHost ?: return
+        if (!state.nowPlaying.hasActivePlayback()) {
+            SoundForkMediaService.stop(getApplication())
+            return
+        }
         SoundForkMediaService.update(
             context = getApplication(),
             host = host,
             port = state.selectedPort,
             station = state.currentRadioStation,
             nowPlaying = state.nowPlaying,
-            isPlaying = state.isRemotePlaybackActive()
+            isPlaying = state.isPlaybackRunning()
         )
     }
 
@@ -1357,28 +1203,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun recordRecentRadioStation(station: RadioStation) {
         val state = _uiState.value
-        val updatedStations = recentRadioStore.record(
+        val updatedStations = settings.recordStation(
             station = station,
-            currentStations = state.recentRadioStations,
-            catalogStations = state.radioStations
+            recents = state.recentRadioStations,
+            catalog = state.radioStations
         )
         _uiState.update {
             it.copy(recentRadioStations = updatedStations)
         }
-    }
-
-    private fun loadFavoriteRadioStreamUrls(): Set<String> {
-        return preferences
-            .getStringSet(KEY_FAVORITE_RADIO_STREAM_URLS, emptySet())
-            .orEmpty()
-            .filter { it.isNotBlank() }
-            .toSet()
-    }
-
-    private fun persistFavoriteRadioStreamUrls(streamUrls: Set<String>) {
-        preferences.edit()
-            .putStringSet(KEY_FAVORITE_RADIO_STREAM_URLS, streamUrls)
-            .apply()
     }
 
     private fun RadioStation.favoriteKey(): String {
@@ -1418,90 +1250,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun radioStationFromNowPlaying(
-        nowPlaying: NowPlayingState?,
-        stations: List<RadioStation>
-    ): RadioStation? {
-        if (nowPlaying == null || !nowPlaying.isActivePlayback()) {
-            return null
-        }
-
-        val titleCandidates = listOfNotNull(
-            nowPlaying.stationName?.takeIf { it.isUsefulNowPlayingTitle() },
-            nowPlaying.track?.takeIf { it.isUsefulNowPlayingTitle() }
-        )
-
-        val matchedStation = stations.firstOrNull { station ->
-            titleCandidates.any { candidate -> station.matchesNowPlayingText(candidate) }
-        }
-        if (matchedStation != null) {
-            return matchedStation
-        }
-
-        val title = titleCandidates.firstOrNull() ?: return null
-        val streamUrl = nowPlaying.location?.takeIf { it.isNotBlank() }.orEmpty()
-        val description = listOfNotNull(
-            nowPlaying.artist?.takeIf { it.isNotBlank() },
-            nowPlaying.album?.takeIf { it.isNotBlank() },
-            nowPlaying.streamType?.takeIf { it.isUsefulNowPlayingTitle() }?.replace('_', ' '),
-            nowPlaying.source?.takeIf { it.isUsefulNowPlayingTitle() }
-        )
-            .distinct()
-            .joinToString(" | ")
-            .ifBlank { str(R.string.active_on_speaker) }
-
-        return RadioStation(
-            name = title,
-            description = description,
-            streamUrl = streamUrl
-        )
-    }
-
-    private fun NowPlayingState.isActivePlayback(): Boolean {
-        val normalizedSource = source.orEmpty().trim().uppercase()
-        val normalizedStatus = playStatus.orEmpty().trim().uppercase()
-        if (normalizedSource == "STANDBY" || normalizedStatus.contains("STOP")) {
-            return false
-        }
-        val hasStreamLocation = !location.isNullOrBlank()
-        return !stationName.isNullOrBlank() ||
-            !track.isNullOrBlank() ||
-            normalizedStatus.contains("PLAY") ||
-            normalizedStatus.contains("PAUSE") ||
-            normalizedStatus.contains("BUFFER") ||
-            (normalizedSource == "UPNP" && hasStreamLocation) ||
-            streamType?.contains("RADIO", ignoreCase = true) == true
-    }
-
-    private fun SoundForkUiState.isRemotePlaybackActive(): Boolean {
-        val playStatus = nowPlaying?.playStatus.orEmpty().trim().uppercase()
-        if (playStatus.contains("STOP")) {
-            return false
-        }
-        if (playStatus.contains("PLAY") || playStatus.contains("PAUSE") || playStatus.contains("BUFFER")) {
-            return true
-        }
-        val source = nowPlaying?.source.orEmpty().trim().uppercase()
-        if (source == "UPNP" && !nowPlaying?.location.isNullOrBlank()) {
-            return true
-        }
-        val status = dlnaStreamStatus.orEmpty().trim().uppercase()
-        if (status.contains("STOP")) {
-            return false
-        }
-        return status.contains("GESTARTET") || currentRadioStation != null
-    }
-
-    private fun RadioStation.matchesNowPlayingText(value: String): Boolean {
-        val stationName = name.normalizedMatchText()
-        val nowPlayingText = value.normalizedMatchText()
-        if (stationName.isBlank() || nowPlayingText.isBlank()) {
-            return false
-        }
-        return stationName == nowPlayingText ||
-            stationName.contains(nowPlayingText) ||
-            nowPlayingText.contains(stationName)
-    }
+    private fun radioStationFromNowPlaying(nowPlaying: NowPlayingState?, stations: List<RadioStation>): RadioStation? =
+        playbackResolver.station(nowPlaying, stations, str(R.string.active_on_speaker))
 
     private fun Set<GabboUpdateType>.toDisplayText(): String {
         return joinToString(", ") { type ->
@@ -1521,26 +1271,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun String.normalizedMatchText(): String {
-        return trim()
-            .lowercase()
-            .replace(Regex("\\s+"), " ")
-    }
-
-    private fun String.isUsefulNowPlayingTitle(): Boolean {
-        val normalized = trim()
-            .replace('_', ' ')
-            .replace(Regex("\\s+"), " ")
-            .uppercase()
-        return normalized.isNotBlank() &&
-            normalized != "UPNP" &&
-            normalized != "TRACK ONDEMAND" &&
-            normalized != "TRACK ONDEMAND TRACK ONDEMAND" &&
-            normalized != "ONDEMAND" &&
-            normalized != "UNKNOWN"
-    }
-
     override fun onCleared() {
+        sessions.close()
         stopNowPlayingRefresh()
         stopGabboUpdates(clearStatus = false)
         super.onCleared()
@@ -1548,10 +1280,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val TAG = "MainViewModel"
-        const val PREFERENCES_NAME = "soundfork_preferences"
-        const val KEY_LAST_HOST = "last_host"
-        const val KEY_LAST_PORT = "last_port"
-        const val KEY_FAVORITE_RADIO_STREAM_URLS = "favorite_radio_stream_urls"
         const val RADIO_CHEMNITZ_STREAM_URL = "http://web.radio.radiochemnitz.de/radiochemnitz-live/stream/mp3"
         const val MAX_DEVICE_NAME_LENGTH = 64
         const val NOW_PLAYING_REFRESH_INTERVAL_MS = 6_000L

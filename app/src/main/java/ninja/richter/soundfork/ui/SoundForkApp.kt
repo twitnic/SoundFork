@@ -12,31 +12,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -46,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.launch
 import ninja.richter.soundfork.model.SoundForkDevicePage
 import ninja.richter.soundfork.model.SoundForkScreenMode
 import ninja.richter.soundfork.report.shareSpeakerReport
@@ -59,8 +50,6 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
     val expandedResults = remember { mutableStateMapOf<String, Boolean>() }
     val context = LocalContext.current
     val permissionError = remember { mutableStateOf<String?>(null) }
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val coroutineScope = rememberCoroutineScope()
     val requiredPermissions = remember { requiredDiscoveryPermissions() }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -88,117 +77,32 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
 
     val isDeviceScreen = state.screenMode == SoundForkScreenMode.DEVICE
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = isDeviceScreen,
-        drawerContent = {
-            if (isDeviceScreen) {
-                SoundForkDrawer(
-                    selectedPage = state.devicePage,
-                    speakerName = state.selectedSummary?.name,
-                    onOpenRadio = {
-                        viewModel.openRadioPage()
-                        coroutineScope.launch { drawerState.close() }
-                    },
-                    onOpenDevice = {
-                        viewModel.openDevicePage()
-                        coroutineScope.launch { drawerState.close() }
-                    },
-                    onOpenSource = {
-                        viewModel.openSourcePage()
-                        coroutineScope.launch { drawerState.close() }
-                    },
-                    onOpenPresets = {
-                        viewModel.openPresetsPage()
-                        coroutineScope.launch { drawerState.close() }
-                    },
-                    onOpenRecents = {
-                        viewModel.openRecentsPage()
-                        coroutineScope.launch { drawerState.close() }
-                    },
-                    onOpenZones = {
-                        viewModel.openZonesPage()
-                        coroutineScope.launch { drawerState.close() }
-                    },
-                    onOpenDebug = {
-                        viewModel.openDebugPage()
-                        coroutineScope.launch { drawerState.close() }
-                    },
-                    onOpenDiscovery = {
-                        viewModel.openDiscoveryScreen()
-                        coroutineScope.launch { drawerState.close() }
-                    }
-                )
+    SoundTouchScaffold(
+        state = state,
+        onPage = { page ->
+            when (page) {
+                SoundForkDevicePage.RADIO -> viewModel.openRadioPage()
+                SoundForkDevicePage.DEVICE -> viewModel.openDevicePage()
+                SoundForkDevicePage.SOURCE -> viewModel.openSourcePage()
+                SoundForkDevicePage.PRESETS -> viewModel.openPresetsPage()
+                SoundForkDevicePage.RECENTS -> viewModel.openRecentsPage()
+                SoundForkDevicePage.ZONES -> viewModel.openZonesPage()
+                SoundForkDevicePage.DEBUG -> viewModel.openDebugPage()
             }
-        }
-    ) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.surface,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    navigationIcon = {
-                        if (isDeviceScreen) {
-                            IconButton(
-                                onClick = { coroutineScope.launch { drawerState.open() } },
-                                enabled = !state.isLoadingSnapshot
-                            ) {
-                                Text("☰", style = MaterialTheme.typography.titleLarge)
-                            }
-                        }
-                    },
-                    title = {
-                        Text(
-                            text = if (isDeviceScreen) {
-                                when (state.devicePage) {
-                                    SoundForkDevicePage.RADIO -> stringResource(R.string.nav_radio)
-                                    SoundForkDevicePage.DEVICE -> stringResource(R.string.nav_device)
-                                    SoundForkDevicePage.SOURCE -> stringResource(R.string.nav_source)
-                                    SoundForkDevicePage.PRESETS -> stringResource(R.string.nav_presets)
-                                    SoundForkDevicePage.RECENTS -> stringResource(R.string.nav_recents)
-                                    SoundForkDevicePage.ZONES -> stringResource(R.string.nav_zones)
-                                    SoundForkDevicePage.DEBUG -> stringResource(R.string.nav_debug)
-                                }
-                            } else {
-                                stringResource(R.string.app_name)
-                            },
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                    },
-                    actions = {
-                        if (isDeviceScreen && state.selectedHost != null) {
-                            TextButton(
-                                onClick = { viewModel.sendTransportKey("POWER") },
-                                enabled = !state.isLoadingSnapshot && !state.isSendingTransportKey
-                            ) {
-                                Text(stringResource(R.string.power_toggle))
-                            }
-                        }
-                    }
-                )
-            },
-            bottomBar = {
-                if (isDeviceScreen) {
-                    MiniPlayerBar(
-                        station = state.currentRadioStation,
-                        nowPlaying = state.nowPlaying,
-                        status = state.dlnaStreamStatus,
-                        isPlaying = state.isMiniPlayerPlaying(),
-                        enabled = !state.isSendingTransportKey,
-                        onKey = viewModel::sendTransportKey
-                    )
-                }
-            }
-        ) { paddingValues ->
-            LazyColumn(
+        },
+        onDiscovery = viewModel::openDiscoveryScreen,
+        onKey = viewModel::sendTransportKey,
+        onVolumeChanged = viewModel::onVolumeDraftChanged,
+        onApplyVolume = viewModel::applyVolume,
+        onToggleMute = viewModel::toggleMute,
+        onSelectSource = viewModel::selectSource
+    ) { paddingValues ->
+        LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
                     .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
             if (!isDeviceScreen) {
                 item {
@@ -206,28 +110,30 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                 }
 
                 item {
-                    ElevatedCard(
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer
                         )
                     ) {
                         Column(
                             modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                            verticalArrangement = Arrangement.spacedBy(18.dp)
                         ) {
+                            SpeakerIllustration(Modifier.size(112.dp).align(Alignment.CenterHorizontally))
                             Text(
-                                text = stringResource(R.string.discovery_title),
+                                text = stringResource(R.string.your_speaker),
                                 style = MaterialTheme.typography.headlineMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                text = stringResource(R.string.discovery_description),
+                                text = stringResource(R.string.connection_intro),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Button(
+                                    modifier = Modifier.fillMaxWidth(),
                                     onClick = {
                                         Log.i(tag, "Netzwerk suchen clicked, missingPermissions=$missingPermissions")
                                         if (missingPermissions.isEmpty()) {
@@ -251,6 +157,7 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                                 }
                                 if (state.lastSavedHost != null) {
                                     FilledTonalButton(
+                                        modifier = Modifier.fillMaxWidth(),
                                         onClick = viewModel::connectToLastSavedSpeaker,
                                         enabled = !state.isLoadingSnapshot && !state.isConnectingLastSpeaker
                                     ) {
@@ -358,12 +265,6 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                             )
                         }
 
-                        item {
-                            TransportControlCard(
-                                enabled = !state.isSendingTransportKey,
-                                onKey = viewModel::sendTransportKey
-                            )
-                        }
                     }
 
                     SoundForkDevicePage.DEVICE -> {
@@ -442,7 +343,8 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
                                 status = state.presetStatus,
                                 enabled = !state.isSendingPresetCommand,
                                 onPlayPreset = viewModel::playPreset,
-                                onSavePreset = viewModel::saveCurrentAsPreset
+                                onSavePreset = viewModel::saveCurrentAsPreset,
+                                stations = state.radioStations
                             )
                         }
                     }
@@ -566,7 +468,6 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
             }
             }
         }
-    }
 }
 
 

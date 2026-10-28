@@ -1,6 +1,8 @@
 package ninja.richter.soundfork.data
 
 import java.io.IOException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 internal data class NetworkResult(
     val code: Int?,
@@ -335,8 +337,7 @@ internal class SoundTouchKeyApi(
         if (normalizedKey.isBlank()) {
             throw IOException("Key fehlt")
         }
-        sendKeyState(host = host, port = port, key = normalizedKey, state = "press")
-        sendKeyState(host = host, port = port, key = normalizedKey, state = "release")
+        pressAndRelease(host, port, normalizedKey, holdMs = 0)
     }
 
     suspend fun playPreset(host: String, port: Int, presetId: Int) {
@@ -344,10 +345,28 @@ internal class SoundTouchKeyApi(
     }
 
     suspend fun saveCurrentAsPreset(host: String, port: Int, presetId: Int, holdMs: Long) {
-        val key = "PRESET_${presetId.coerceIn(1, 6)}"
-        sendKeyState(host = host, port = port, key = key, state = "press")
-        kotlinx.coroutines.delay(holdMs)
-        sendKeyState(host = host, port = port, key = key, state = "release")
+        pressAndRelease(host, port, "PRESET_${presetId.coerceIn(1, 6)}", holdMs)
+    }
+
+    private suspend fun pressAndRelease(host: String, port: Int, key: String, holdMs: Long) {
+        var originalFailure: Throwable? = null
+        try {
+            sendKeyState(host, port, key, "press")
+            if (holdMs > 0) kotlinx.coroutines.delay(holdMs)
+        } catch (failure: Throwable) {
+            originalFailure = failure
+            throw failure
+        } finally {
+            // Switching devices must still release a potentially held key on the old speaker.
+            withContext(NonCancellable) {
+                try {
+                    sendKeyState(host, port, key, "release")
+                } catch (releaseFailure: Exception) {
+                    if (originalFailure == null) throw releaseFailure
+                    originalFailure.addSuppressed(releaseFailure)
+                }
+            }
+        }
     }
 
     private suspend fun sendKeyState(host: String, port: Int, key: String, state: String) {

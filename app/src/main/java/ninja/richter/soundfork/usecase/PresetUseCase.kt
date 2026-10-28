@@ -1,5 +1,7 @@
 package ninja.richter.soundfork.usecase
 
+import ninja.richter.soundfork.core.runSuspendCatching
+
 import ninja.richter.soundfork.data.BoseRecentItem
 import ninja.richter.soundfork.data.PresetItem
 import ninja.richter.soundfork.data.SoundTouchRepository
@@ -14,7 +16,7 @@ class PresetUseCase(
                 repository.playDlnaStream(host = host, streamUrl = preset.location.orEmpty())
             }
             preset?.source?.isNotBlank() == true -> {
-                runCatching {
+                runSuspendCatching {
                     repository.selectPreset(host = host, port = port, preset = preset)
                 }.getOrElse {
                     repository.playPreset(host = host, port = port, presetId = id)

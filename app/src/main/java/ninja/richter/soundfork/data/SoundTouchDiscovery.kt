@@ -7,6 +7,9 @@ import android.net.wifi.WifiManager
 import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import ninja.richter.soundfork.core.runSuspendCatching
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -36,7 +39,7 @@ class SoundTouchDiscovery(
         val byHostMethods = mutableMapOf<String, MutableSet<DiscoveryMethod>>()
         val hostPorts = mutableMapOf<String, Int>()
 
-        val mdnsHosts = runCatching { mdnsDeferred.await() }.getOrElse {
+        val mdnsHosts = runSuspendCatching { mdnsDeferred.await() }.getOrElse {
             Log.w(TAG, "discover(): discoverViaMdns() threw error: ${it.message}")
             emptyMap()
         }
@@ -47,7 +50,7 @@ class SoundTouchDiscovery(
             methods += DiscoveryMethod.MDNS
         }
 
-        val ssdpHosts = runCatching { ssdpDeferred.await() }.getOrElse {
+        val ssdpHosts = runSuspendCatching { ssdpDeferred.await() }.getOrElse {
             Log.w(TAG, "discover(): discoverViaSsdp() threw error: ${it.message}")
             emptyMap()
         }
@@ -73,7 +76,7 @@ class SoundTouchDiscovery(
                 async {
                     val port = hostPorts[host] ?: SoundTouchRepository.DEFAULT_PORT
                     Log.d(TAG, "discover(): probing host=$host port=$port methods=$methods")
-                    val summary = runCatching {
+                    val summary = runSuspendCatching {
                         repository.probeDevice(host, port)
                     }.onFailure { throwable ->
                         Log.w(TAG, "discover(): probe failed host=$host port=$port error=${throwable.message}")
@@ -308,24 +311,28 @@ class SoundTouchDiscovery(
             Log.w(TAG, "mDNS discoverServices failed requested=$normalizedDiscoveryType error=${throwable.message}")
         }
 
-        delay(max(timeoutMs, 2_000))
+        try {
+            delay(max(timeoutMs, 2_000))
 
-        val elapsed = SystemClock.elapsedRealtime() - startTime
-        Log.i(
-            TAG,
-            "mDNS scan finished requested=$normalizedDiscoveryType serviceFound=$serviceFoundCount " +
-                "candidate=$candidateCount ignored=$ignoredCount resolved=$resolveCount " +
-                "hostCount=${hosts.size} elapsedMs=$elapsed"
-        )
+            val elapsed = SystemClock.elapsedRealtime() - startTime
+            Log.i(
+                TAG,
+                "mDNS scan finished requested=$normalizedDiscoveryType serviceFound=$serviceFoundCount " +
+                    "candidate=$candidateCount ignored=$ignoredCount resolved=$resolveCount " +
+                    "hostCount=${hosts.size} elapsedMs=$elapsed"
+            )
 
-        runCatching { nsdManager.stopServiceDiscovery(discoveryListener) }
-            .onSuccess { Log.d(TAG, "mDNS stopServiceDiscovery success requested=$normalizedDiscoveryType") }
-            .onFailure { throwable ->
-                Log.w(
-                    TAG,
-                    "mDNS stopServiceDiscovery failed requested=$normalizedDiscoveryType error=${throwable.message}"
-                )
-            }
+        } finally {
+            runCatching { nsdManager.stopServiceDiscovery(discoveryListener) }
+                .onSuccess { Log.d(TAG, "mDNS stopServiceDiscovery success requested=$normalizedDiscoveryType") }
+                .onFailure { throwable ->
+                    Log.w(
+                        TAG,
+                        "mDNS stopServiceDiscovery failed requested=$normalizedDiscoveryType error=${throwable.message}"
+                    )
+                }
+
+        }
 
         if (hosts.isEmpty()) {
             emptyMap()
@@ -388,6 +395,7 @@ class SoundTouchDiscovery(
                 val deadline = System.currentTimeMillis() + max(timeoutMs, 2_000)
                 val buffer = ByteArray(4 * 1024)
                 while (System.currentTimeMillis() < deadline) {
+                    currentCoroutineContext().ensureActive()
                     val responsePacket = DatagramPacket(buffer, buffer.size)
                     try {
                         socket.receive(responsePacket)

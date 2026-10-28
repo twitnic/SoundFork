@@ -8,6 +8,7 @@ class GabboController(
     private val client: SoundTouchGabboClient
 ) {
     private var webSocket: WebSocket? = null
+    @Volatile
     private var connectionToken: String? = null
 
     fun connect(

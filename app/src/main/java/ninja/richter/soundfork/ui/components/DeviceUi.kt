@@ -1,27 +1,24 @@
 package ninja.richter.soundfork
 
-import android.util.Log
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -35,170 +32,66 @@ import ninja.richter.soundfork.data.VolumeState
 
 @Composable
 fun SelectedDeviceCard(
-    host: String,
-    port: Int,
-    name: String?,
-    type: String?,
-    deviceId: String?,
-    nameDraft: String,
-    realtimeStatus: String?,
-    realtimeError: String?,
-    isRefreshing: Boolean,
-    isRenaming: Boolean,
-    onNameChanged: (String) -> Unit,
-    onApplyName: () -> Unit,
-    onRefresh: () -> Unit
+    host: String, port: Int, name: String?, type: String?, deviceId: String?, nameDraft: String,
+    realtimeStatus: String?, realtimeError: String?, isRefreshing: Boolean, isRenaming: Boolean,
+    onNameChanged: (String) -> Unit, onApplyName: () -> Unit, onRefresh: () -> Unit
 ) {
-    val tag = TAG
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.connected_device),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = name ?: stringResource(R.string.unknown_name),
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = "Host: $host:$port",
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall
-            )
-            if (type != null) {
-                Text(stringResource(R.string.type_prefix, type), style = MaterialTheme.typography.bodySmall)
-            }
-            if (deviceId != null) {
-                Text("Device ID: $deviceId", style = MaterialTheme.typography.bodySmall)
-            }
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = nameDraft,
-                onValueChange = onNameChanged,
-                label = { Text(stringResource(R.string.device_name)) },
-                singleLine = true,
-                enabled = !isRenaming,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { onApplyName() })
-            )
-            FilledTonalButton(
-                onClick = onApplyName,
-                enabled = !isRenaming && nameDraft.isNotBlank() && nameDraft != name.orEmpty()
-            ) {
-                Text(if (isRenaming) stringResource(R.string.saving) else stringResource(R.string.save_name))
-            }
-            realtimeStatus?.let { status ->
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ) {
-                    Text(
-                        text = status,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.bodySmall
-                    )
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SpeakerIllustration(Modifier.padding(top = 8.dp).size(128.dp))
+        Text(name ?: stringResource(R.string.unknown_name), style = MaterialTheme.typography.titleLarge,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(type ?: stringResource(R.string.connected_device), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        TextButton({ settingsOpen = !settingsOpen }) {
+            TouchIcon(TouchSymbol.Settings, null, Modifier.padding(end = 8.dp).size(18.dp))
+            Text(stringResource(R.string.device_settings))
+        }
+        if (settingsOpen) {
+            Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("$host:$port", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                    deviceId?.let { Text("ID: $it", style = MaterialTheme.typography.bodySmall) }
+                    OutlinedTextField(nameDraft, onNameChanged, Modifier.fillMaxWidth(), singleLine = true,
+                        label = { Text(stringResource(R.string.device_name)) }, enabled = !isRenaming,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { onApplyName() }))
+                    FilledTonalButton(onApplyName, enabled = !isRenaming && nameDraft.isNotBlank() && nameDraft != name.orEmpty()) {
+                        Text(stringResource(if (isRenaming) R.string.saving else R.string.save_name))
+                    }
+                    realtimeStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    OutlinedButton(onRefresh, enabled = !isRefreshing) { Text(stringResource(R.string.reload)) }
                 }
-            }
-            realtimeError?.let { error ->
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                ) {
-                    Text(
-                        text = error,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-            OutlinedButton(
-                onClick = {
-                    Log.d(tag, "Manual refresh clicked host=$host")
-                    onRefresh()
-                },
-                enabled = !isRefreshing
-            ) {
-                Text(stringResource(R.string.reload))
             }
         }
+        realtimeError?.let { StatusMessage(it, true) }
+        HorizontalDivider(Modifier.padding(top = 8.dp))
     }
 }
 
 @Composable
 fun VolumeControlCard(
-    volumeDraft: Float,
-    volumeState: VolumeState?,
-    isApplying: Boolean,
-    onVolumeChanged: (Float) -> Unit,
-    onApplyVolume: () -> Unit,
-    onToggleMute: () -> Unit
+    volumeDraft: Float, volumeState: VolumeState?, isApplying: Boolean,
+    onVolumeChanged: (Float) -> Unit, onApplyVolume: () -> Unit, onToggleMute: () -> Unit
 ) {
-    val target = volumeState?.targetVolume ?: volumeDraft.toInt()
-    val actual = volumeState?.actualVolume
-    val muteEnabled = volumeState?.muteEnabled == true
-
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.volume),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Slider(
-                value = volumeDraft,
-                onValueChange = onVolumeChanged,
-                onValueChangeFinished = onApplyVolume,
-                valueRange = 0f..100f,
-                steps = 99,
-                enabled = !isApplying
-            )
-
-            Text(
-                text = stringResource(R.string.target_actual, target.toString(), actual?.toString() ?: "-"),
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace
-            )
-            Text(
-                text = stringResource(
-                    R.string.mute_state,
-                    if (muteEnabled) stringResource(R.string.on) else stringResource(R.string.off)
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace
-            )
-
-            FilledTonalButton(
-                onClick = onToggleMute,
-                enabled = !isApplying
-            ) {
-                Text(
-                    if (muteEnabled) {
-                        stringResource(R.string.disable_mute)
-                    } else {
-                        stringResource(R.string.enable_mute)
-                    }
-                )
+    val muted = volumeState?.muteEnabled == true
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.volume), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Text(volumeDraft.toInt().toString(), style = MaterialTheme.typography.titleMedium)
             }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                IconButton(onToggleMute, enabled = !isApplying) {
+                    TouchIcon(if (muted) TouchSymbol.Muted else TouchSymbol.Volume,
+                        stringResource(if (muted) R.string.disable_mute else R.string.enable_mute))
+                }
+                SoundTouchSlider(volumeDraft, onVolumeChanged, Modifier.weight(1f), onValueChangeFinished = onApplyVolume,
+                    valueRange = 0f..100f, enabled = !isApplying)
+            }
+            if (muted) Text(stringResource(R.string.mute_state, stringResource(R.string.on)),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -214,9 +107,9 @@ fun BassControlCard(
     val target = bassState?.targetBass ?: bassDraft.toInt()
     val actual = bassState?.actualBass
 
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
@@ -229,7 +122,7 @@ fun BassControlCard(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
-            Slider(
+            SoundTouchSlider(
                 value = bassDraft,
                 onValueChange = onBassChanged,
                 onValueChangeFinished = onApplyBass,
@@ -267,9 +160,9 @@ fun ToneControlCard(
         }
     }
 
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
@@ -291,7 +184,7 @@ fun ToneControlCard(
                 return@Column
             }
 
-            Slider(
+            SoundTouchSlider(
                 value = trebleDraft.coerceIn(min.toFloat(), max.toFloat()),
                 onValueChange = onTrebleChanged,
                 onValueChangeFinished = onApplyTreble,
@@ -327,9 +220,9 @@ fun DynamicAudioControlsCard(endpointResults: List<EndpointResult>) {
         return
     }
 
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {

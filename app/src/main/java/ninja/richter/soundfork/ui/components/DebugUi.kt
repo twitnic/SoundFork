@@ -11,7 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -37,9 +37,9 @@ fun DlnaStreamCard(
     onStreamUrlChanged: (String) -> Unit,
     onPlay: () -> Unit
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
@@ -98,9 +98,9 @@ fun ApiTestCard(
     onTestEndpoint: () -> Unit,
     onToggleExpand: () -> Unit
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
@@ -160,9 +160,9 @@ fun ReportCard(
     enabled: Boolean,
     onSendReport: () -> Unit
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {

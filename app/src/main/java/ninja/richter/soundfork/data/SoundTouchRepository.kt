@@ -2,10 +2,14 @@ package ninja.richter.soundfork.data
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import ninja.richter.soundfork.core.runSuspendCatching
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
@@ -23,6 +27,7 @@ class SoundTouchRepository(
         .connectTimeout(1_500, TimeUnit.MILLISECONDS)
         .readTimeout(2_500, TimeUnit.MILLISECONDS)
         .writeTimeout(2_500, TimeUnit.MILLISECONDS)
+        .callTimeout(5_000, TimeUnit.MILLISECONDS)
         .build()
 ) {
     companion object {
@@ -43,8 +48,15 @@ class SoundTouchRepository(
         private val URL_BASE_REGEX = Regex("(?is)<URLBase>\\s*([^<]+?)\\s*</URLBase>")
     }
 
+    private val transport = SoundTouchHttpTransport(client)
+
     private val requestExecutor = SoundTouchRequestExecutor { host, port, path, method, body ->
-        performRequest(host = host, port = port, path = path, method = method, body = body)
+        performRequest(host = host, port = port, path = path, method = method, body = body).also { result ->
+            result.exception?.let { throw SpeakerRequestException.network(path, it) }
+            if (method == "POST" && result.code !in 200..299) {
+                throw SpeakerRequestException(SpeakerFailure.HTTP, path, result.code)
+            }
+        }
     }
     private val deviceApi = SoundTouchDeviceApi(requestExecutor)
     private val selectionApi = SoundTouchSelectionApi(requestExecutor)
@@ -57,175 +69,182 @@ class SoundTouchRepository(
     ): SoundTouchSnapshot = coroutineScope {
         Log.i(TAG, "loadSnapshot(): start host=$host port=$port")
         val start = System.currentTimeMillis()
-        return@coroutineScope runCatching {
-        val infoDescriptor = EndpointDescriptor(
-            title = "Info",
-            aliases = listOf("/info")
-        )
-        val capabilitiesDescriptor = EndpointDescriptor(
-            title = "Capabilities",
-            aliases = listOf("/capabilities")
-        )
-
-        val infoDeferred = async { fetchEndpoint(host, port, infoDescriptor) }
-        val capabilitiesDeferred = async { fetchEndpoint(host, port, capabilitiesDescriptor) }
-
-        val infoResult = infoDeferred.await()
-        val capabilitiesResult = capabilitiesDeferred.await()
-        Log.i(TAG, "loadSnapshot(): initial results info=${infoResult.httpCode} capabilities=${capabilitiesResult.httpCode}")
-        val summary = runCatching {
-            infoResult.body?.let { SoundTouchXml.parseSummary(host, it) }
-        }.onFailure { throwable ->
-            Log.w(
-                TAG,
-                "loadSnapshot(): parseSummary failed host=$host port=$port error=${throwable.message}"
+        return@coroutineScope runSuspendCatching {
+            val infoDescriptor = EndpointDescriptor(
+                title = "Info",
+                aliases = listOf("/info")
             )
-        }.getOrNull()
-        Log.d(
-            TAG,
-            "loadSnapshot(): summary host=${summary?.host} name=${summary?.name} " +
-                "type=${summary?.type} deviceId=${summary?.deviceId}"
-        )
-
-        val dynamicDescriptors = runCatching {
-            capabilitiesResult.body?.let(SoundTouchXml::extractCapabilityUrls)
-        }.onFailure { throwable ->
-            Log.w(
-                TAG,
-                "loadSnapshot(): extractCapabilityUrls failed host=$host port=$port error=${throwable.message}"
+            val capabilitiesDescriptor = EndpointDescriptor(
+                title = "Capabilities",
+                aliases = listOf("/capabilities")
             )
-        }.getOrElse { null }.orEmpty()
-            .map { path ->
-                EndpointDescriptor(
-                    title = "Capability $path",
-                    aliases = listOf(path),
-                    optional = true
+
+            val infoDeferred = async { fetchEndpoint(host, port, infoDescriptor, required = true) }
+            val capabilitiesDeferred = async { fetchEndpoint(host, port, capabilitiesDescriptor) }
+
+            val infoResult = infoDeferred.await()
+            val capabilitiesResult = capabilitiesDeferred.await()
+            Log.i(TAG, "loadSnapshot(): initial results info=${infoResult.httpCode} capabilities=${capabilitiesResult.httpCode}")
+            val summary = runCatching {
+                infoResult.body?.let { SoundTouchXml.parseSummary(host, it) }
+            }.onFailure { throwable ->
+                Log.w(
+                    TAG,
+                    "loadSnapshot(): parseSummary failed host=$host port=$port error=${throwable.message}"
                 )
-            }
+            }.getOrNull() ?: throw SpeakerRequestException(SpeakerFailure.INVALID_RESPONSE, "/info")
+            Log.d(
+                TAG,
+                "loadSnapshot(): summary host=${summary.host} name=${summary.name} " +
+                    "type=${summary.type} deviceId=${summary.deviceId}"
+            )
 
-        val staticDescriptors = defaultReadDescriptors()
-            .filterNot { descriptor ->
-                descriptor.aliases.firstOrNull() in setOf("/info", "/capabilities")
-            }
-
-        val descriptors = (staticDescriptors + dynamicDescriptors)
-            .distinctBy { it.aliases.firstOrNull().orEmpty().lowercase() }
-
-        val remainingResults = descriptors
-            .map { descriptor ->
-                Log.d(TAG, "loadSnapshot(): enqueue endpoint=${descriptor.title} aliases=${descriptor.aliases}")
-                async {
-                    runCatching { fetchEndpoint(host, port, descriptor) }
-                        .onFailure { throwable ->
-                            Log.w(
-                                TAG,
-                                "loadSnapshot(): fetchEndpoint failed host=$host port=$port " +
-                                    "title=${descriptor.title} error=${throwable.message}"
-                            )
-                        }.getOrElse {
-                            EndpointResult(
-                                title = descriptor.title,
-                                requestedAliases = descriptor.aliases.ifEmpty { listOf("/") },
-                                resolvedPath = descriptor.aliases.firstOrNull(),
-                                httpCode = null,
-                                body = null,
-                                isError = true,
-                                errorMessage = it.message ?: "Unerwarteter Fehler beim Laden des Endpunkts"
-                            )
-                        }
+            val dynamicDescriptors = runCatching {
+                capabilitiesResult.body?.let(SoundTouchXml::extractCapabilityUrls)
+            }.onFailure { throwable ->
+                Log.w(
+                    TAG,
+                    "loadSnapshot(): extractCapabilityUrls failed host=$host port=$port error=${throwable.message}"
+                )
+            }.getOrElse { null }.orEmpty()
+                .map { path ->
+                    EndpointDescriptor(
+                        title = "Capability $path",
+                        aliases = listOf(path),
+                        optional = true
+                    )
                 }
-            }
-            .awaitAll()
 
-        Log.i(TAG, "loadSnapshot(): complete host=$host endpointResults=${remainingResults.size}")
-        Log.d(TAG, "loadSnapshot(): done host=$host durationMs=${System.currentTimeMillis() - start}")
-        val endpointResults = listOf(infoResult, capabilitiesResult) + remainingResults
-        val volumeState = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                result.title == "Volume" || path == "/volume"
-            }
-            ?.body
-            ?.let(SoundTouchXml::parseVolume)
-        val bassState = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                result.title == "Bass" || path == "/bass"
-            }
-            ?.body
-            ?.let(SoundTouchXml::parseBass)
-        val toneControlState = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                path == "/audioproducttonecontrols"
-            }
-            ?.body
-            ?.let(SoundTouchXml::parseToneControls)
-        val sources = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                result.title == "Sources" || path == "/sources"
-            }
-            ?.body
-            ?.let(SoundTouchXml::parseSources)
-            .orEmpty()
-        val nowPlayingResult = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                result.title == "Now Playing" || path in setOf("/now_playing", "/nowplaying", "/now%20playing")
-            }
-        val nowPlaying = nowPlayingResult
-            ?.body
-            ?.let(SoundTouchXml::parseNowPlaying)
-        val currentSource = nowPlaying?.source
-            ?.takeIf { it.isNotBlank() }
-            ?.let { source ->
-                SourceItem(
-                    source = source,
-                    sourceAccount = nowPlaying.sourceAccount
-                )
-            }
-            ?: nowPlayingResult
+            val staticDescriptors = defaultReadDescriptors()
+                .filterNot { descriptor ->
+                    descriptor.aliases.firstOrNull() in setOf("/info", "/capabilities")
+                }
+
+            val descriptors = (staticDescriptors + dynamicDescriptors)
+                .distinctBy { it.aliases.firstOrNull().orEmpty().lowercase() }
+                .sortedBy { if (it.optional) 1 else 0 }
+
+            val remainingResults = descriptors
+                .map { descriptor ->
+                    Log.d(TAG, "loadSnapshot(): enqueue endpoint=${descriptor.title} aliases=${descriptor.aliases}")
+                    async {
+                        runSuspendCatching {
+                            if (descriptor.optional) {
+                                withTimeoutOrNull(2_500) { fetchEndpoint(host, port, descriptor) }
+                                    ?: EndpointResult(descriptor.title, descriptor.aliases, descriptor.aliases.firstOrNull(),
+                                        null, null, true, "Optional endpoint timed out")
+                            } else fetchEndpoint(host, port, descriptor)
+                        }
+                            .onFailure { throwable ->
+                                Log.w(
+                                    TAG,
+                                    "loadSnapshot(): fetchEndpoint failed host=$host port=$port " +
+                                        "title=${descriptor.title} error=${throwable.message}"
+                                )
+                            }.getOrElse {
+                                EndpointResult(
+                                    title = descriptor.title,
+                                    requestedAliases = descriptor.aliases.ifEmpty { listOf("/") },
+                                    resolvedPath = descriptor.aliases.firstOrNull(),
+                                    httpCode = null,
+                                    body = null,
+                                    isError = true,
+                                    errorMessage = it.message ?: "Unerwarteter Fehler beim Laden des Endpunkts"
+                                )
+                            }
+                    }
+                }
+                .awaitAll()
+
+            Log.i(TAG, "loadSnapshot(): complete host=$host endpointResults=${remainingResults.size}")
+            Log.d(TAG, "loadSnapshot(): done host=$host durationMs=${System.currentTimeMillis() - start}")
+            val endpointResults = listOf(infoResult, capabilitiesResult) + remainingResults
+            val volumeState = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    result.title == "Volume" || path == "/volume"
+                }
                 ?.body
-                ?.let(SoundTouchXml::parseNowPlayingSource)
-        val presets = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                result.title == "Presets" || path == "/presets"
-            }
-            ?.body
-            ?.let(SoundTouchXml::parsePresets)
-            .orEmpty()
-        val recents = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                result.title == "Recents" || path == "/recents"
-            }
-            ?.body
-            ?.let(SoundTouchXml::parseRecents)
-            .orEmpty()
-        val zoneXml = endpointResults
-            .firstOrNull { result ->
-                val path = result.resolvedPath.orEmpty().lowercase()
-                result.title == "Zone" || path == "/getzone"
-            }
-            ?.body
-        val zoneState = zoneXml?.let(SoundTouchXml::parseZone)
+                ?.let(SoundTouchXml::parseVolume)
+            val bassState = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    result.title == "Bass" || path == "/bass"
+                }
+                ?.body
+                ?.let(SoundTouchXml::parseBass)
+            val toneControlState = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    path == "/audioproducttonecontrols"
+                }
+                ?.body
+                ?.let(SoundTouchXml::parseToneControls)
+            val sources = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    result.title == "Sources" || path == "/sources"
+                }
+                ?.body
+                ?.let(SoundTouchXml::parseSources)
+                .orEmpty()
+            val nowPlayingResult = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    result.title == "Now Playing" || path in setOf("/now_playing", "/nowplaying", "/now%20playing")
+                }
+            val nowPlaying = nowPlayingResult
+                ?.body
+                ?.let(SoundTouchXml::parseNowPlaying)
+            val currentSource = nowPlaying?.source
+                ?.takeIf { it.isNotBlank() }
+                ?.let { source ->
+                    SourceItem(
+                        source = source,
+                        sourceAccount = nowPlaying.sourceAccount
+                    )
+                }
+                ?: nowPlayingResult
+                    ?.body
+                    ?.let(SoundTouchXml::parseNowPlayingSource)
+            val presets = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    result.title == "Presets" || path == "/presets"
+                }
+                ?.body
+                ?.let(SoundTouchXml::parsePresets)
+                .orEmpty()
+            val recents = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    result.title == "Recents" || path == "/recents"
+                }
+                ?.body
+                ?.let(SoundTouchXml::parseRecents)
+                .orEmpty()
+            val zoneXml = endpointResults
+                .firstOrNull { result ->
+                    val path = result.resolvedPath.orEmpty().lowercase()
+                    result.title == "Zone" || path == "/getzone"
+                }
+                ?.body
+            val zoneState = zoneXml?.let(SoundTouchXml::parseZone)
 
-        SoundTouchSnapshot(
-            summary = summary,
-            endpointResults = endpointResults,
-            volumeState = volumeState,
-            bassState = bassState,
-            toneControlState = toneControlState,
-            sources = sources,
-            currentSource = currentSource,
-            nowPlaying = nowPlaying,
-            presets = presets,
-            recents = recents,
-            zoneState = zoneState,
-            zoneXml = zoneXml
-        )
+            SoundTouchSnapshot(
+                summary = summary,
+                endpointResults = endpointResults,
+                volumeState = volumeState,
+                bassState = bassState,
+                toneControlState = toneControlState,
+                sources = sources,
+                currentSource = currentSource,
+                nowPlaying = nowPlaying,
+                presets = presets,
+                recents = recents,
+                zoneState = zoneState,
+                zoneXml = zoneXml
+            )
         }.getOrElse { throwable ->
             Log.w(
                 TAG,
@@ -722,7 +741,7 @@ class SoundTouchRepository(
 
     private suspend fun discoverUpnpDescriptionUrls(targetHost: String): List<String> = withContext(Dispatchers.IO) {
         val urls = linkedSetOf<String>()
-        runCatching {
+        runSuspendCatching {
             DatagramSocket().use { socket ->
                 socket.soTimeout = SSDP_SOCKET_TIMEOUT_MS
                 socket.broadcast = true
@@ -743,6 +762,7 @@ class SoundTouchRepository(
                 val deadline = System.currentTimeMillis() + 2_500
                 val buffer = ByteArray(4 * 1024)
                 while (System.currentTimeMillis() < deadline) {
+                    currentCoroutineContext().ensureActive()
                     val packet = DatagramPacket(buffer, buffer.size)
                     try {
                         socket.receive(packet)
@@ -852,7 +872,8 @@ class SoundTouchRepository(
     private suspend fun fetchEndpoint(
         host: String,
         port: Int,
-        descriptor: EndpointDescriptor
+        descriptor: EndpointDescriptor,
+        required: Boolean = false
     ): EndpointResult {
         Log.d(TAG, "fetchEndpoint(): start title=${descriptor.title} host=$host aliases=${descriptor.aliases}")
         val aliases = descriptor.aliases.ifEmpty { listOf("/") }
@@ -864,6 +885,7 @@ class SoundTouchRepository(
             val body = result.body
 
             if (result.exception != null) {
+                if (required) throw SpeakerRequestException.network(alias, result.exception)
                 lastFailure = EndpointResult(
                     title = descriptor.title,
                     requestedAliases = aliases,
@@ -876,6 +898,7 @@ class SoundTouchRepository(
                 continue
             }
 
+            if (required && code !in 200..299) throw SpeakerRequestException(SpeakerFailure.HTTP, alias, code)
             val prettyBody = body?.let(SoundTouchXml::prettyOrRaw)
             val isSuccess = code in 200..299
             val unsupported = descriptor.optional && code == 404
@@ -944,23 +967,7 @@ class SoundTouchRepository(
                 else -> requestBuilder.get().build()
             }
 
-            try {
-                client.newCall(request).execute().use { response ->
-                    Log.v(TAG, "performRequest(): response code=${response.code} url=$url method=$method")
-                    NetworkResult(
-                        code = response.code,
-                        body = response.body?.string(),
-                        exception = null
-                    )
-                }
-            } catch (exception: IOException) {
-                Log.w(TAG, "performRequest(): failed url=$url error=${exception.message}")
-                NetworkResult(
-                    code = null,
-                    body = null,
-                    exception = exception
-                )
-            }
+            transport.execute(request)
         }
     }
 
@@ -982,25 +989,8 @@ class SoundTouchRepository(
                 .post(body.toRequestBody(SOAP_MEDIA_TYPE))
                 .build()
 
-            try {
-                client.newCall(request).execute().use { response ->
-                    Log.v(
-                        TAG,
-                        "performSoapRequest(): response code=${response.code} url=$url action=$soapAction"
-                    )
-                    NetworkResult(
-                        code = response.code,
-                        body = response.body?.string(),
-                        exception = null
-                    )
-                }
-            } catch (exception: IOException) {
-                Log.w(TAG, "performSoapRequest(): failed url=$url error=${exception.message}")
-                NetworkResult(
-                    code = null,
-                    body = null,
-                    exception = exception
-                )
+            transport.execute(request).also { result ->
+                result.exception?.let { throw SpeakerRequestException.network(normalizedPath, it) }
             }
         }
     }
@@ -1014,22 +1004,8 @@ class SoundTouchRepository(
                 .get()
                 .build()
 
-            try {
-                client.newCall(request).execute().use { response ->
-                    Log.v(TAG, "performAbsoluteGet(): response code=${response.code} url=$url")
-                    NetworkResult(
-                        code = response.code,
-                        body = response.body?.string(),
-                        exception = null
-                    )
-                }
-            } catch (exception: IOException) {
-                Log.w(TAG, "performAbsoluteGet(): failed url=$url error=${exception.message}")
-                NetworkResult(
-                    code = null,
-                    body = null,
-                    exception = exception
-                )
+            transport.execute(request).also { result ->
+                result.exception?.let { throw SpeakerRequestException.network(url, it) }
             }
         }
     }

@@ -1,193 +1,80 @@
 package ninja.richter.soundfork
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ninja.richter.soundfork.data.BoseRecentItem
 import ninja.richter.soundfork.data.PresetItem
+import ninja.richter.soundfork.model.RadioStation
 
 @Composable
 fun PresetListCard(
-    presets: List<PresetItem>,
-    status: String?,
-    enabled: Boolean,
-    onPlayPreset: (PresetItem?, Int) -> Unit,
-    onSavePreset: (Int) -> Unit
+    presets: List<PresetItem>, status: String?, enabled: Boolean,
+    onPlayPreset: (PresetItem?, Int) -> Unit, onSavePreset: (Int) -> Unit,
+    stations: List<RadioStation> = emptyList()
 ) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.saved_presets),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            if (presets.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.no_presets),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            val presetsById = remember(presets) {
-                presets.mapNotNull { preset -> preset.id?.let { it to preset } }.toMap()
-            }
-            (1..6).forEach { presetId ->
-                PresetRow(
-                    presetId = presetId,
-                    preset = presetsById[presetId],
-                    enabled = enabled,
-                    onPlayPreset = onPlayPreset,
-                    onSavePreset = onSavePreset
-                )
-                if (presetId < 6) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 48.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    )
+    var saveSlot by rememberSaveable { mutableStateOf<Int?>(null) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(R.string.saved_presets), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.preset_hint), style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            Column {
+                val presetsById = remember(presets) { presets.associateBy { it.id } }
+                (1..6).forEach { id ->
+                    val preset = presetsById[id]
+                    val station = stations.firstOrNull { it.streamUrl == preset?.location }
+                    PresetRow(id, preset, enabled, onPlayPreset, { saveSlot = it }, station?.name)
+                    if (id < 6) HorizontalDivider(Modifier.padding(start = 40.dp))
                 }
             }
-
-            if (status != null) {
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isErrorStatus(status)) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    }
-                )
-            }
         }
+        if (status != null) StatusMessage(status, isErrorStatus(status))
+    }
+    saveSlot?.let { id ->
+        AlertDialog(onDismissRequest = { saveSlot = null },
+            title = { Text(stringResource(R.string.preset_confirm_title, id)) },
+            text = { Text(stringResource(R.string.preset_confirm_body)) },
+            confirmButton = { TextButton({ saveSlot = null; onSavePreset(id) }, enabled = enabled) { Text(stringResource(R.string.save)) } },
+            dismissButton = { TextButton({ saveSlot = null }) { Text(stringResource(R.string.cancel)) } })
     }
 }
 
 @Composable
-fun PresetRow(
-    presetId: Int,
-    preset: PresetItem?,
-    enabled: Boolean,
-    onPlayPreset: (PresetItem?, Int) -> Unit,
-    onSavePreset: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 82.dp)
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = presetId.toString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = preset?.name ?: stringResource(R.string.preset_name, presetId),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = listOfNotNull(
-                        preset?.source?.takeIf { it.isNotBlank() },
-                        preset?.sourceAccount?.takeIf { it.isNotBlank() }
-                    ).joinToString(" | ").ifBlank { stringResource(R.string.preset_empty) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                preset?.location?.takeIf { it.isNotBlank() }?.let { location ->
-                    Text(
-                        text = location,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (preset?.isPresetable == true) {
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ) {
-                        Text(
-                            text = "presetable",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-            }
+fun PresetRow(presetId: Int, preset: PresetItem?, enabled: Boolean,
+              onPlayPreset: (PresetItem?, Int) -> Unit, onSavePreset: (Int) -> Unit, stationName: String? = null) {
+    val title = stationName ?: preset?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.preset_name, presetId)
+    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(presetId.toString(), Modifier.width(32.dp), style = MaterialTheme.typography.titleLarge,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        if (preset != null) StationArtwork(title, Modifier.padding(horizontal = 8.dp).size(48.dp))
+        else Box(Modifier.padding(horizontal = 8.dp).size(48.dp).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            TouchIcon(TouchSymbol.Plus, null, tint = MaterialTheme.colorScheme.outline)
         }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilledTonalButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { onPlayPreset(preset, presetId) },
-                enabled = enabled
-            ) {
-                Text(stringResource(R.string.play))
-            }
-            OutlinedButton(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { onSavePreset(presetId) },
-                enabled = enabled
-            ) {
-                Text(stringResource(R.string.save_current_stream))
-            }
+        Column(Modifier.weight(1f).padding(start = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(when {
+                preset == null -> stringResource(R.string.preset_unassigned)
+                preset.source == "UPNP" -> stringResource(R.string.internet_radio)
+                else -> preset.source ?: stringResource(R.string.unknown_source)
+            }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        IconButton({ onPlayPreset(preset, presetId) }, enabled = enabled) {
+            TouchIcon(TouchSymbol.Play, stringResource(R.string.play))
+        }
+        IconButton({ onSavePreset(presetId) }, enabled = enabled) {
+            TouchIcon(TouchSymbol.Plus, stringResource(R.string.save_to_preset, presetId), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -199,9 +86,9 @@ fun BoseRecentsCard(
     enabled: Boolean,
     onPlayRecent: (BoseRecentItem) -> Unit
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {

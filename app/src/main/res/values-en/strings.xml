@@ -184,4 +184,27 @@
     <string name="created_at">Created: %1$s</string>
     <string name="app_version">App version: %1$s</string>
     <string name="network_search_failed">Network search failed</string>
+    <string name="open_menu">Open menu</string>
+    <string name="open_player">Open player</string>
+    <string name="close_player">Close player</string>
+    <string name="speaker_controls">Speaker controls</string>
+    <string name="device_settings">Device settings</string>
+    <string name="all_stations">All stations</string>
+    <string name="favorites">Favorites</string>
+    <string name="no_favorite_stations">Add your favorite stations using the heart.</string>
+    <string name="add_favorite">Add to favorites</string>
+    <string name="remove_favorite">Remove from favorites</string>
+    <string name="preset_hint">Your music. One touch away.</string>
+    <string name="preset_unassigned">Not assigned</string>
+    <string name="save_to_preset">Save to preset %1$d</string>
+    <string name="preset_confirm_title">Assign preset %1$d?</string>
+    <string name="preset_confirm_body">Save the current stream to this slot. Any existing assignment will be replaced.</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="your_speaker">Your sound. Your home.</string>
+    <string name="connection_intro">Connect your SoundTouch and bring your favorite stations to every room.</string>
+    <string name="speaker_request_timeout">The speaker did not respond in time. Please try again.</string>
+    <string name="speaker_request_rejected">The speaker rejected the request (HTTP %1$s).</string>
+    <string name="speaker_invalid_response">No valid SoundTouch speaker was found at this address.</string>
+    <string name="speaker_network_error">The connection to the speaker was interrupted. Please check your Wi-Fi.</string>
 </resources>

@@ -25,114 +25,67 @@ import androidx.core.view.WindowCompat
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF006A60),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF9EF2E4),
-    onPrimaryContainer = Color(0xFF00201C),
-    secondary = Color(0xFF4A635F),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFCDE8E2),
-    onSecondaryContainer = Color(0xFF06201C),
-    tertiary = Color(0xFF49617B),
-    onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFD0E4FF),
-    onTertiaryContainer = Color(0xFF001D34),
-    error = Color(0xFFBA1A1A),
-    onError = Color(0xFFFFFFFF),
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFAFDFB),
-    onBackground = Color(0xFF191C1B),
-    surface = Color(0xFFFAFDFB),
-    onSurface = Color(0xFF191C1B),
-    surfaceVariant = Color(0xFFDAE5E1),
-    onSurfaceVariant = Color(0xFF3F4946),
-    outline = Color(0xFF6F7976)
+    primary = Color(0xFF191919), onPrimary = Color.White,
+    primaryContainer = Color(0xFFECECEB), onPrimaryContainer = Color(0xFF191919),
+    secondary = Color(0xFF62615E), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF0EFED), onSecondaryContainer = Color(0xFF252523),
+    tertiary = Color(0xFF8E7169), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFF0E7E3), onTertiaryContainer = Color(0xFF4B3933),
+    background = Color(0xFFF7F7F6), onBackground = Color(0xFF202020),
+    surface = Color(0xFFFAFAF9), onSurface = Color(0xFF202020),
+    surfaceVariant = Color(0xFFF0F0EE), onSurfaceVariant = Color(0xFF73736E),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color.White,
+    surfaceContainer = Color.White, surfaceContainerHigh = Color.White,
+    surfaceContainerHighest = Color(0xFFECECEB),
+    outline = Color(0xFFAAAAA5), outlineVariant = Color(0xFFE3E3E0),
+    error = Color(0xFFAC342D), errorContainer = Color(0xFFFBEAE7),
+    onErrorContainer = Color(0xFF79251F)
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF82D5C8),
-    onPrimary = Color(0xFF003731),
-    primaryContainer = Color(0xFF005049),
-    onPrimaryContainer = Color(0xFF9EF2E4),
-    secondary = Color(0xFFB1CCC6),
-    onSecondary = Color(0xFF1C3531),
-    secondaryContainer = Color(0xFF334B47),
-    onSecondaryContainer = Color(0xFFCDE8E2),
-    tertiary = Color(0xFFB1C9E7),
-    onTertiary = Color(0xFF19324A),
-    tertiaryContainer = Color(0xFF314962),
-    onTertiaryContainer = Color(0xFFD0E4FF),
-    error = Color(0xFFFFB4AB),
-    onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF101413),
-    onBackground = Color(0xFFE0E3E1),
-    surface = Color(0xFF101413),
-    onSurface = Color(0xFFE0E3E1),
-    surfaceVariant = Color(0xFF3F4946),
-    onSurfaceVariant = Color(0xFFBEC9C5),
-    outline = Color(0xFF89938F)
+    primary = Color(0xFFF0EFEC), onPrimary = Color(0xFF161616),
+    primaryContainer = Color(0xFF30302F), onPrimaryContainer = Color(0xFFF0EFEC),
+    secondary = Color(0xFFB9B7B1), onSecondary = Color(0xFF161616),
+    secondaryContainer = Color(0xFF292928), onSecondaryContainer = Color(0xFFE8E6E1),
+    tertiary = Color(0xFFD3B0A2), onTertiary = Color(0xFF2D211C),
+    tertiaryContainer = Color(0xFF392F2A), onTertiaryContainer = Color(0xFFEAD7CD),
+    background = Color(0xFF141414), onBackground = Color(0xFFF0EFEC),
+    surface = Color(0xFF171717), onSurface = Color(0xFFF0EFEC),
+    surfaceVariant = Color(0xFF292928), onSurfaceVariant = Color(0xFFAAA9A4),
+    surfaceContainerLowest = Color(0xFF101010), surfaceContainerLow = Color(0xFF1E1E1D),
+    surfaceContainer = Color(0xFF20201F), surfaceContainerHigh = Color(0xFF20201F),
+    surfaceContainerHighest = Color(0xFF30302F),
+    outline = Color(0xFF777771), outlineVariant = Color(0xFF383836),
+    error = Color(0xFFFFB4AB), errorContainer = Color(0xFF522924),
+    onErrorContainer = Color(0xFFFFDAD6)
 )
 
+// The original SoundTouch interface uses light, spaced lettering and quiet surfaces.
+private val SoundTouchFont = FontFamily(android.graphics.Typeface.create("sans-serif-light", android.graphics.Typeface.NORMAL))
 private val SoundForkTypography = Typography(
-    headlineLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 32.sp,
-        lineHeight = 40.sp
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 28.sp,
-        lineHeight = 36.sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
-        lineHeight = 24.sp
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    labelLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    )
+    headlineLarge = TextStyle(fontFamily = SoundTouchFont, fontSize = 32.sp, lineHeight = 40.sp, letterSpacing = 0.6.sp),
+    headlineMedium = TextStyle(fontFamily = SoundTouchFont, fontSize = 27.sp, lineHeight = 35.sp, letterSpacing = 0.5.sp),
+    titleLarge = TextStyle(fontFamily = SoundTouchFont, fontWeight = FontWeight.Medium, fontSize = 21.sp, lineHeight = 28.sp, letterSpacing = 1.4.sp),
+    titleMedium = TextStyle(fontFamily = SoundTouchFont, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 23.sp, letterSpacing = 0.6.sp),
+    titleSmall = TextStyle(fontFamily = SoundTouchFont, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = 0.5.sp),
+    bodyLarge = TextStyle(fontFamily = SoundTouchFont, fontSize = 16.sp, lineHeight = 23.sp, letterSpacing = 0.3.sp),
+    bodyMedium = TextStyle(fontFamily = SoundTouchFont, fontSize = 14.sp, lineHeight = 21.sp, letterSpacing = 0.2.sp),
+    bodySmall = TextStyle(fontFamily = SoundTouchFont, fontSize = 12.sp, lineHeight = 18.sp, letterSpacing = 0.2.sp),
+    labelLarge = TextStyle(fontFamily = SoundTouchFont, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 20.sp, letterSpacing = 0.5.sp),
+    labelMedium = TextStyle(fontFamily = SoundTouchFont, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 16.sp, letterSpacing = 1.sp),
+    labelSmall = TextStyle(fontFamily = SoundTouchFont, fontSize = 10.sp, lineHeight = 15.sp, letterSpacing = 0.7.sp)
 )
 
 private val SoundForkShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(18.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(32.dp)
+    extraSmall = RoundedCornerShape(2.dp), small = RoundedCornerShape(4.dp),
+    medium = RoundedCornerShape(6.dp), large = RoundedCornerShape(10.dp),
+    extraLarge = RoundedCornerShape(16.dp)
 )
 
 @Composable
 fun SoundForkTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -153,6 +106,8 @@ fun SoundForkTheme(
             window.navigationBarColor = colorScheme.surface.toArgb()
             WindowCompat.getInsetsController(window, view)
                 .isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view)
+                .isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

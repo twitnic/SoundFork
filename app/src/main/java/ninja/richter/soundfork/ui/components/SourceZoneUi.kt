@@ -14,7 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -45,9 +45,9 @@ fun SourceListCard(
     isSelecting: Boolean,
     onSelectSource: (SourceItem) -> Unit
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
@@ -167,9 +167,9 @@ fun ZoneInfoCard(
     onAddZoneSlave: (DiscoveredSpeaker) -> Unit,
     onRemoveZoneSlave: (ZoneMember) -> Unit
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
@@ -451,8 +451,10 @@ fun ZoneMemberRow(
     }
 }
 
+@Composable
 fun SourceItem.displayName(): String {
-    return name?.takeIf { it.isNotBlank() } ?: source
+    return name?.takeIf { it.isNotBlank() }
+        ?: if (source.equals("UPNP", ignoreCase = true)) stringResource(R.string.internet_radio) else source
 }
 
 fun SourceItem.matches(other: SourceItem?): Boolean {
