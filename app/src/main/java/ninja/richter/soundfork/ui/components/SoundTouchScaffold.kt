@@ -1,5 +1,6 @@
 package ninja.richter.soundfork
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,15 +11,25 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import ninja.richter.soundfork.data.SourceItem
 import ninja.richter.soundfork.model.SoundForkDevicePage
@@ -36,7 +47,6 @@ fun SoundForkDevicePage.titleResource(): Int = when (this) {
     SoundForkDevicePage.DEBUG -> R.string.nav_debug
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SoundTouchScaffold(
     state: SoundForkUiState,
@@ -47,15 +57,80 @@ fun SoundTouchScaffold(
     onApplyVolume: () -> Unit,
     onToggleMute: () -> Unit,
     onSelectSource: (SourceItem) -> Unit,
+    folds: List<WindowFold> = emptyList(),
+    content: @Composable (PaddingValues) -> Unit
+) {
+    // Moving the page between panes must preserve its scroll position and local edit state.
+    val currentContent = rememberUpdatedState(content)
+    val pageContent = remember { movableContentOf<PaddingValues> { currentContent.value(it) } }
+    var windowOrigin by remember { mutableStateOf(Offset.Zero) }
+    val density = LocalDensity.current
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
+        BoxWithConstraints(Modifier.fillMaxSize().testTag("fold_layout").onGloballyPositioned { windowOrigin = it.positionInWindow() }) {
+            val windowBounds = Rect(windowOrigin, Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat()))
+            val split = calculateFoldPanes(windowBounds, folds)
+            CompositionLocalProvider(LocalFoldSeparated provides (split != null)) {
+                if (split == null) {
+                    ResponsiveSoundTouchScaffold(state, onPage, onDiscovery, onKey, onVolumeChanged, onApplyVolume,
+                        onToggleMute, onSelectSource, content = pageContent)
+                } else {
+                    val hasPlayer = state.screenMode == SoundForkScreenMode.DEVICE && split.supportsPlayer(density.density)
+                    val pagePane = if (hasPlayer) split.first else split.largestPane()
+                    FoldPaneLayout(listOfNotNull(pagePane, split.second.takeIf { hasPlayer })) {
+                        Box(Modifier.fillMaxSize().clipToBounds().testTag("fold_page_pane")) {
+                            ResponsiveSoundTouchScaffold(state, onPage, onDiscovery, onKey, onVolumeChanged, onApplyVolume,
+                                onToggleMute, onSelectSource, externalPlayer = hasPlayer, content = pageContent)
+                        }
+                        if (hasPlayer) {
+                            Box(Modifier.fillMaxSize().clipToBounds().testTag("fold_player_pane")) {
+                                PersistentPlayer(state, onKey, onVolumeChanged, onApplyVolume, onToggleMute, onSelectSource, onPage,
+                                    modifier = Modifier.fillMaxSize(), tabletop = split.orientation == FoldOrientation.HORIZONTAL)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Absolute placement is intentional: hinge coordinates describe physical left/right, also in RTL. */
+@Composable
+private fun FoldPaneLayout(panes: List<Rect>, content: @Composable () -> Unit) {
+    Layout(content, Modifier.fillMaxSize()) { measurables, constraints ->
+        val placeables = measurables.zip(panes).map { (measurable, pane) ->
+            measurable.measure(Constraints.fixed(pane.width.roundToInt(), pane.height.roundToInt()))
+        }
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            placeables.zip(panes).forEach { (placeable, pane) ->
+                placeable.place(pane.left.roundToInt(), pane.top.roundToInt())
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ResponsiveSoundTouchScaffold(
+    state: SoundForkUiState,
+    onPage: (SoundForkDevicePage) -> Unit,
+    onDiscovery: () -> Unit,
+    onKey: (String) -> Unit,
+    onVolumeChanged: (Float) -> Unit,
+    onApplyVolume: () -> Unit,
+    onToggleMute: () -> Unit,
+    onSelectSource: (SourceItem) -> Unit,
+    externalPlayer: Boolean = false,
     content: @Composable (PaddingValues) -> Unit
 ) {
     val connected = state.screenMode == SoundForkScreenMode.DEVICE
     val scope = rememberCoroutineScope()
+    val foldSeparated = LocalFoldSeparated.current
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var speakerOpen by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val persistentNavigation = connected && maxWidth >= 600.dp
-        val persistentPlayer = connected && maxWidth >= 1000.dp
+        val persistentPlayer = connected && !externalPlayer && maxWidth >= 1000.dp
         val expandedNavigation = maxWidth >= 1200.dp
         // A removed drawer has no anchors to animate to. Recreate its transient state on a
         // layout change so an open phone menu cannot reappear when returning from tablet mode.
@@ -64,8 +139,8 @@ fun SoundTouchScaffold(
             onPage(page)
             scope.launch { drawer.close() }
         }
-        LaunchedEffect(persistentPlayer, connected) {
-            if (persistentPlayer || !connected) {
+        LaunchedEffect(persistentPlayer, connected, externalPlayer) {
+            if (persistentPlayer || externalPlayer || !connected) {
                 playerOpen = false
                 speakerOpen = false
             }
@@ -80,7 +155,8 @@ fun SoundTouchScaffold(
                     CenterAlignedTopAppBar(
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                         title = { Text(stringResource(if (connected) state.devicePage.titleResource() else R.string.app_name),
-                            style = MaterialTheme.typography.titleMedium, letterSpacing = 2.sp) },
+                            style = MaterialTheme.typography.titleMedium, letterSpacing = 2.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
                             if (connected && !persistentNavigation) IconButton({ scope.launch { drawer.open() } }) {
                                 TouchIcon(TouchSymbol.Menu, stringResource(R.string.open_menu))
@@ -100,7 +176,7 @@ fun SoundTouchScaffold(
                     HorizontalDivider(thickness = 0.5.dp)
                 }
             }, bottomBar = {
-                if (connected && !persistentPlayer) MiniPlayerBar(state.currentRadioStation, state.nowPlaying, state.isMiniPlayerPlaying(),
+                if (connected && !persistentPlayer && !externalPlayer) MiniPlayerBar(state.currentRadioStation, state.nowPlaying, state.isMiniPlayerPlaying(),
                     !state.isSendingTransportKey && !state.isLoadingSnapshot, state.selectedSummary?.name,
                     state.currentSource?.displayName(), { playerOpen = true }, { speakerOpen = true }, onKey)
             }) { padding ->
@@ -122,19 +198,43 @@ fun SoundTouchScaffold(
                 }
             }
         }
-        if (connected && !persistentPlayer && playerOpen) {
-            ModalBottomSheet(onDismissRequest = { playerOpen = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                dragHandle = null, containerColor = MaterialTheme.colorScheme.surface) {
-                ExpandedPlayer(state, { playerOpen = false }, onKey) { playerOpen = false; speakerOpen = true }
+        if (connected && !persistentPlayer && !externalPlayer && playerOpen) {
+            if (foldSeparated) {
+                PanePlayerOverlay({ playerOpen = false }) {
+                    ExpandedPlayer(state, { playerOpen = false }, onKey) { playerOpen = false; speakerOpen = true }
+                }
+            } else {
+                ModalBottomSheet(onDismissRequest = { playerOpen = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    dragHandle = null, containerColor = MaterialTheme.colorScheme.surface) {
+                    ExpandedPlayer(state, { playerOpen = false }, onKey) { playerOpen = false; speakerOpen = true }
+                }
             }
         }
-        if (connected && !persistentPlayer && speakerOpen) {
-            ModalBottomSheet(onDismissRequest = { speakerOpen = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                SpeakerControls(state, onVolumeChanged, onApplyVolume, onToggleMute, onSelectSource,
-                    onPage = { speakerOpen = false; onPage(it) })
+        if (connected && !persistentPlayer && !externalPlayer && speakerOpen) {
+            if (foldSeparated) {
+                PanePlayerOverlay({ speakerOpen = false }) {
+                    Column {
+                        IconButton({ speakerOpen = false }) { TouchIcon(TouchSymbol.Down, stringResource(R.string.close_player)) }
+                        SpeakerControls(state, onVolumeChanged, onApplyVolume, onToggleMute, onSelectSource,
+                            onPage = { speakerOpen = false; onPage(it) })
+                    }
+                }
+            } else {
+                ModalBottomSheet(onDismissRequest = { speakerOpen = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                    SpeakerControls(state, onVolumeChanged, onApplyVolume, onToggleMute, onSelectSource,
+                        onPage = { speakerOpen = false; onPage(it) })
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun PanePlayerOverlay(onClose: () -> Unit, content: @Composable () -> Unit) {
+    BackHandler(onBack = onClose)
+    Surface(Modifier.fillMaxSize().testTag("pane_player_overlay"), color = MaterialTheme.colorScheme.surfaceContainer) {
+        content()
     }
 }
 
@@ -146,22 +246,30 @@ private fun PersistentPlayer(
     onApplyVolume: () -> Unit,
     onToggleMute: () -> Unit,
     onSelectSource: (SourceItem) -> Unit,
-    onPage: (SoundForkDevicePage) -> Unit
+    onPage: (SoundForkDevicePage) -> Unit,
+    modifier: Modifier = Modifier.width(340.dp).fillMaxHeight(),
+    tabletop: Boolean = false
 ) {
-    Surface(Modifier.width(340.dp).fillMaxHeight().testTag("persistent_player"), color = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            TouchSectionHeading(stringResource(R.string.currently_playing))
-            StationArtwork(playbackTitle(state.currentRadioStation, state.nowPlaying), Modifier.size(160.dp))
-            Text(playbackTitle(state.currentRadioStation, state.nowPlaying), style = MaterialTheme.typography.headlineSmall,
-                textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            Text(playbackDetail(state.currentRadioStation, state.nowPlaying), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
-                maxLines = 3, overflow = TextOverflow.Ellipsis)
-            TransportControls(state, onKey)
-            HorizontalDivider()
-            SpeakerControlsContent(state, onVolumeChanged, onApplyVolume, onToggleMute, onSelectSource, onPage,
-                largeIllustration = false)
+    Surface(modifier.testTag("persistent_player"), color = MaterialTheme.colorScheme.surfaceContainer) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.widthIn(max = 680.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // The lower tabletop pane opens with transport controls in reach, even at low heights.
+                if (tabletop) TransportControls(state, onKey)
+                else {
+                    TouchSectionHeading(stringResource(R.string.currently_playing))
+                    StationArtwork(playbackTitle(state.currentRadioStation, state.nowPlaying), Modifier.size(160.dp))
+                }
+                Text(playbackTitle(state.currentRadioStation, state.nowPlaying), style = MaterialTheme.typography.headlineSmall,
+                    textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(playbackDetail(state.currentRadioStation, state.nowPlaying), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis)
+                if (!tabletop) TransportControls(state, onKey)
+                HorizontalDivider()
+                SpeakerControlsContent(state, onVolumeChanged, onApplyVolume, onToggleMute, onSelectSource, onPage,
+                    largeIllustration = false)
+            }
         }
     }
 }

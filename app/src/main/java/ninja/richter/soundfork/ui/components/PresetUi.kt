@@ -1,5 +1,7 @@
 package ninja.richter.soundfork
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
@@ -24,6 +26,8 @@ fun PresetListCard(
     stations: List<RadioStation> = emptyList()
 ) {
     var saveSlot by rememberSaveable { mutableStateOf<Int?>(null) }
+    val foldSeparated = LocalFoldSeparated.current
+    BackHandler(enabled = foldSeparated && saveSlot != null) { saveSlot = null }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(stringResource(R.string.saved_presets), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.preset_hint), style = MaterialTheme.typography.bodyMedium,
@@ -35,18 +39,37 @@ fun PresetListCard(
                     val preset = presetsById[id]
                     val station = stations.firstOrNull { it.streamUrl == preset?.location }
                     PresetRow(id, preset, enabled, onPlayPreset, { saveSlot = it }, station?.name)
+                    if (foldSeparated && saveSlot == id) {
+                        PresetSaveConfirmation(id, enabled, onSave = { saveSlot = null; onSavePreset(id) }, onCancel = { saveSlot = null })
+                    }
                     if (id < 6) HorizontalDivider(Modifier.padding(start = 40.dp))
                 }
             }
         }
         if (status != null) StatusMessage(status, isErrorStatus(status))
     }
-    saveSlot?.let { id ->
+    saveSlot?.takeUnless { foldSeparated }?.let { id ->
         AlertDialog(onDismissRequest = { saveSlot = null },
             title = { Text(stringResource(R.string.preset_confirm_title, id)) },
             text = { Text(stringResource(R.string.preset_confirm_body)) },
             confirmButton = { TextButton({ saveSlot = null; onSavePreset(id) }, enabled = enabled) { Text(stringResource(R.string.save)) } },
             dismissButton = { TextButton({ saveSlot = null }) { Text(stringResource(R.string.cancel)) } })
+    }
+}
+
+/** Inline confirmation keeps all buttons within the page pane, including in tabletop mode. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PresetSaveConfirmation(id: Int, enabled: Boolean, onSave: () -> Unit, onCancel: () -> Unit) {
+    Surface(Modifier.fillMaxWidth().testTag("preset_save_confirmation"), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.preset_confirm_title, id), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.preset_confirm_body), style = MaterialTheme.typography.bodyMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onCancel) { Text(stringResource(R.string.cancel)) }
+                TextButton(onSave, enabled = enabled) { Text(stringResource(R.string.save)) }
+            }
+        }
     }
 }
 

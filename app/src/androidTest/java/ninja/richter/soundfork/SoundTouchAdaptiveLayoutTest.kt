@@ -4,6 +4,10 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.geometry.Rect
+import androidx.test.espresso.Espresso.pressBack
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -50,6 +54,10 @@ class SoundTouchAdaptiveLayoutTest {
     private val dark = mutableStateOf(false)
     private val fontScale = mutableStateOf(1f)
     private val windowWidth = mutableStateOf<Dp?>(null)
+    private val windowHeight = mutableStateOf<Dp?>(null)
+    private val folds = mutableStateOf<List<WindowFold>>(emptyList())
+    private var pageListState: LazyListState? = null
+    private var savedPreset: Int? = null
     private var lastKey: String? = null
     private var volumeApplied = false
     private var muteToggled = false
@@ -63,8 +71,9 @@ class SoundTouchAdaptiveLayoutTest {
                 SoundForkTheme(darkTheme = dark.value) {
                     val state = ui.value
                     Box(Modifier.fillMaxSize()) {
-                        Box(Modifier.widthIn(max = windowWidth.value ?: Dp.Infinity).fillMaxSize()) {
-                            SoundTouchScaffold(state,
+                        Box(Modifier.widthIn(max = windowWidth.value ?: Dp.Infinity)
+                            .heightIn(max = windowHeight.value ?: Dp.Infinity).fillMaxSize()) {
+                            SoundTouchScaffold(state, folds = folds.value,
                                 onPage = { ui.value = ui.value.copy(devicePage = it) },
                                 onDiscovery = { ui.value = ui.value.copy(screenMode = SoundForkScreenMode.DISCOVERY) },
                                 onKey = {
@@ -76,8 +85,10 @@ class SoundTouchAdaptiveLayoutTest {
                                 onApplyVolume = { volumeApplied = true }, onToggleMute = { muteToggled = true },
                                 onSelectSource = { ui.value = ui.value.copy(currentSource = it) }
                             ) { padding ->
-                                LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp),
-                                    verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                                val listState = rememberLazyListState()
+                                SideEffect { pageListState = listState }
+                                LazyColumn(Modifier.fillMaxSize().testTag("page_list").padding(padding).padding(horizontal = 20.dp),
+                                    state = listState, verticalArrangement = Arrangement.spacedBy(20.dp)) {
                                     item { Spacer(Modifier.height(8.dp)) }
                                     if (state.screenMode == SoundForkScreenMode.DISCOVERY) {
                                         item { Text("Lautsprecher verbinden", Modifier.testTag("discovery_content")) }
@@ -88,7 +99,7 @@ class SoundTouchAdaptiveLayoutTest {
                                             item { RadioStationListCard(stations, state.currentRadioStation, "", emptySet(), null, false, {}, {}, {}) }
                                         }
                                         SoundForkDevicePage.PRESETS -> item {
-                                            PresetListCard(emptyList(), null, true, { _, _ -> }, {}, stations)
+                                            PresetListCard(emptyList(), null, true, { _, _ -> }, { savedPreset = it }, stations)
                                         }
                                         else -> item { Text(state.devicePage.name, Modifier.testTag("selected_page")) }
                                     }
@@ -217,17 +228,139 @@ class SoundTouchAdaptiveLayoutTest {
         }
     }
 
+    @Test fun bookModeKeepsTheHingeClearAndControlsUsable() {
+        mount()
+        val root = compose.onNodeWithTag("fold_layout").getUnclippedBoundsInRoot()
+        assumeTrue(root.width >= 600.dp)
+        val fold = insertFold(FoldOrientation.VERTICAL, thickness = 24f)
+        assertPanesAvoid(fold)
+        compose.onNodeWithTag("mini_player_open").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Pause").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals("PAUSE", lastKey) }
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress))
+            .performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(62f) }
+        compose.onNodeWithText("AUX").performScrollTo().performClick()
+        compose.runOnIdle {
+            assertTrue(volumeApplied)
+            assertEquals(62f, ui.value.volumeDraft, 0.01f)
+            assertEquals("AUX", ui.value.currentSource?.source)
+        }
+        snapshot("book")
+    }
+
+    @Test fun tabletopKeepsControlsBelowTheCreaseWithLargeText() {
+        dark.value = true
+        fontScale.value = 1.5f
+        mount()
+        val root = compose.onNodeWithTag("fold_layout").getUnclippedBoundsInRoot()
+        assumeTrue(root.width >= 280.dp && root.bottom - root.top >= 380.dp)
+        val fold = insertFold(FoldOrientation.HORIZONTAL)
+        assertPanesAvoid(fold)
+        compose.onNodeWithContentDescription("Pause").performScrollTo().performClick()
+        compose.onNodeWithText("AUX").performScrollTo().performClick()
+        assertTrue(compose.onNodeWithText("AUX").fetchSemanticsNode().boundsInWindow.top >= fold.bounds.bottom)
+        compose.onNodeWithText(controlText(R.string.device_settings)).performScrollTo().performClick()
+        compose.onNodeWithTag("selected_page").assertTextEquals("DEVICE")
+        snapshot("tabletop-dark")
+    }
+
+    @Test fun foldingPreservesPageScrollAndAnOpenPresetConfirmation() {
+        ui.value = ui.value.copy(devicePage = SoundForkDevicePage.PRESETS, volumeDraft = 62f)
+        windowHeight.value = 520.dp
+        mount()
+        assumeTrue(compose.onNodeWithTag("fold_layout").getUnclippedBoundsInRoot().width >= 600.dp)
+        compose.onNodeWithTag("page_list").performScrollToIndex(1)
+        compose.onNodeWithContentDescription(pageText(R.string.save_to_preset, 6)).performScrollTo().performClick()
+        val originalList = pageListState
+        val originalOffset = originalList!!.firstVisibleItemScrollOffset
+        val originalIndex = originalList.firstVisibleItemIndex
+        val book = insertFold(FoldOrientation.VERTICAL, thickness = 30f)
+        assertPanesAvoid(book)
+        compose.onNodeWithTag("preset_save_confirmation").performScrollTo().assertIsDisplayed()
+        compose.runOnIdle {
+            assertSame(originalList, pageListState)
+            assertEquals(SoundForkDevicePage.PRESETS, ui.value.devicePage)
+            assertEquals(62f, ui.value.volumeDraft, 0.01f)
+        }
+        insertFold(FoldOrientation.HORIZONTAL)
+        compose.onNodeWithTag("preset_save_confirmation").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(pageText(R.string.save)).performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(6, savedPreset) }
+        compose.runOnIdle { folds.value = emptyList() }
+        compose.onNodeWithTag("preset_save_confirmation").assertDoesNotExist()
+        compose.onNodeWithTag("fold_page_pane").assertDoesNotExist()
+        compose.runOnIdle { assertSame(originalList, pageListState) }
+        // The list was really scrolled before folding; it wasn't a fresh page at its initial position.
+        assertTrue(originalOffset > 0 || originalIndex > 0)
+    }
+
+    @Test fun narrowFoldUsesOneSafePaneAndContainsPlayerOverlays() {
+        windowWidth.value = 411.dp
+        mount()
+        val fold = insertFold(FoldOrientation.VERTICAL, fraction = 0.1f, thickness = 12f)
+        compose.onNodeWithTag("fold_player_pane").assertDoesNotExist()
+        val page = compose.onNodeWithTag("fold_page_pane").fetchSemanticsNode().boundsInWindow
+        assertTrue(page.left >= fold.bounds.right)
+        compose.onNodeWithTag("speaker_controls_open").performClick()
+        compose.onNodeWithTag("pane_player_overlay").assertIsDisplayed()
+        val overlay = compose.onNodeWithTag("pane_player_overlay").fetchSemanticsNode().boundsInWindow
+        assertTrue(overlay.left >= page.left && overlay.right <= page.right)
+        compose.onNodeWithText("AUX").performScrollTo().performClick()
+        pressBack()
+        compose.onNodeWithTag("pane_player_overlay").assertDoesNotExist()
+        compose.onNodeWithTag("mini_player_open").assertIsDisplayed()
+    }
+
+    @Test fun discoveryUsesTheLargerPaneWithoutCrossingTheHinge() {
+        ui.value = ui.value.copy(screenMode = SoundForkScreenMode.DISCOVERY)
+        mount()
+        val fold = insertFold(FoldOrientation.VERTICAL, fraction = 0.25f, thickness = 24f)
+        compose.onNodeWithTag("discovery_content").assertIsDisplayed()
+        compose.onNodeWithTag("fold_player_pane").assertDoesNotExist()
+        assertTrue(compose.onNodeWithTag("fold_page_pane").fetchSemanticsNode().boundsInWindow.left >= fold.bounds.right)
+    }
+
+    private fun insertFold(orientation: FoldOrientation, fraction: Float = 0.5f, thickness: Float = 0f): WindowFold {
+        val root = compose.onNodeWithTag("fold_layout").fetchSemanticsNode().boundsInWindow
+        val bounds = if (orientation == FoldOrientation.VERTICAL) {
+            val x = root.left + root.width * fraction
+            Rect(x, root.top, x + thickness, root.bottom)
+        } else {
+            val y = root.top + root.height * fraction
+            Rect(root.left, y, root.right, y + thickness)
+        }
+        return WindowFold(bounds, orientation).also { fold -> compose.runOnIdle { folds.value = listOf(fold) } }
+    }
+
+    private fun assertPanesAvoid(fold: WindowFold) {
+        compose.onNodeWithTag("fold_page_pane").assertIsDisplayed()
+        compose.onNodeWithTag("fold_player_pane").assertIsDisplayed()
+        val page = compose.onNodeWithTag("fold_page_pane").fetchSemanticsNode().boundsInWindow
+        val player = compose.onNodeWithTag("fold_player_pane").fetchSemanticsNode().boundsInWindow
+        if (fold.orientation == FoldOrientation.VERTICAL) {
+            assertTrue(page.right <= fold.bounds.left + 1f)
+            assertTrue(player.left >= fold.bounds.right - 1f)
+        } else {
+            assertTrue(page.bottom <= fold.bounds.top + 1f)
+            assertTrue(player.top >= fold.bounds.bottom - 1f)
+        }
+    }
+
     private fun openNavigation(width: Float) {
         if (width < 600f) compose.onNodeWithContentDescription("Menü öffnen").performClick()
     }
 
     private fun controlText(resource: Int): String {
         // Native sheet windows use the activity's locale, while the inline preview is German.
-        if (compose.onAllNodesWithTag("persistent_player").fetchSemanticsNodes().isEmpty()) {
+        if (compose.onAllNodesWithTag("persistent_player").fetchSemanticsNodes().isEmpty() && folds.value.isEmpty()) {
             return context.getString(resource)
         }
+        return pageText(resource)
+    }
+
+    private fun pageText(resource: Int, vararg args: Any): String {
         val configuration = Configuration(context.resources.configuration).apply { setLocale(Locale.GERMAN) }
-        return context.createConfigurationContext(configuration).getString(resource)
+        return context.createConfigurationContext(configuration).getString(resource, *args)
     }
 
     private fun snapshot(name: String) {

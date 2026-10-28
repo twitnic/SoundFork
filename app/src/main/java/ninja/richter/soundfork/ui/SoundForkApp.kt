@@ -44,7 +44,7 @@ import ninja.richter.soundfork.report.shareSpeakerReport
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
+fun SoundForkAppScreen(viewModel: MainViewModel = viewModel(), folds: List<WindowFold> = emptyList()) {
     val tag = TAG
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val expandedResults = remember { mutableStateMapOf<String, Boolean>() }
@@ -79,6 +79,7 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel()) {
 
     SoundTouchScaffold(
         state = state,
+        folds = folds,
         onPage = { page ->
             when (page) {
                 SoundForkDevicePage.RADIO -> viewModel.openRadioPage()

@@ -22,7 +22,19 @@ Die Oberfläche richtet sich nach der verfügbaren Fensterbreite, auch bei Rotat
 
 Die Verbindungssuche bleibt auf eine gut lesbare Breite begrenzt. Beim Wechsel zu einem breiten Fenster schließen offene Menü- und Playeransichten; die gewählte Seite und Lautstärke bleiben erhalten.
 
-`SoundTouchAdaptiveLayoutTest` prüft die Layouts und die Bedienung mit simulierten Lautsprecherdaten. Die Tests sind für schmale Fenster sowie Tablets in Hoch- und Querformat vorgesehen und decken auch große Schrift und das dunkle Design ab.
+## Foldables
+
+Jetpack WindowManager meldet Faltzustand und Scharnierposition an die Oberfläche. Bei einem trennenden Falz oder einem verdeckenden Scharnier bleibt dessen gesamte Fläche frei:
+
+- Buchmodus (senkrechter Falz): Seiteninhalt links, Wiedergabe und Lautsprechersteuerung rechts. Das funktioniert auch unterhalb der üblichen 1000-dp-Grenze für den seitlichen Player.
+- Tischmodus (waagerechter Falz): Seiteninhalt oben, scrollbare Wiedergabe- und Lautsprechersteuerung unten.
+- Sind die Teilflächen für zwei Ansichten zu klein (weniger als 280 dp Breite oder 180 dp Höhe pro Teilfläche), nutzt die App die größere freie Fläche. Playeransichten bleiben innerhalb dieser Fläche.
+- Die Verbindungssuche nutzt ebenfalls die größere freie Fläche. Preset-Bestätigungen erscheinen bei getrennter Anzeige direkt im Seiteninhalt.
+- Auf einem flach geöffneten, durchgehenden Display und auf dem Außendisplay gelten die normalen Fensterlayouts.
+
+Die Falzposition wird von Fensterkoordinaten in die tatsächliche Inhaltsfläche umgerechnet, einschließlich Systemleisten und Fensterposition. Seiteninhalt, Scrollzustand und offene Preset-Bestätigungen bleiben bei Layoutwechseln innerhalb derselben Activity erhalten; Geräte- und Wiedergabestatus liegen weiterhin im ViewModel.
+
+`SoundTouchAdaptiveLayoutTest` prüft die Layouts und die Bedienung mit simulierten Lautsprecherdaten und Falzpositionen. Die Tests decken schmale Fenster, Tablets, Buch- und Tischmodus, große Schrift, dunkles Design, freie Scharnierbereiche sowie Übergänge mit offenen Bedienansichten ab. `FoldingFeatureMappingTest` prüft die Auswertung der WindowManager-Meldungen; `FoldableLayoutTest` prüft die Geometrie einschließlich Fenster-Versatz und Nullbreiten-Falz. Ein Test auf physischer Foldable-Hardware steht noch aus.
 
 ## Features
 
