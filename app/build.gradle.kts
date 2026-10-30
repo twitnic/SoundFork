@@ -6,11 +6,11 @@ plugins {
 val reportRecipientEmail = "kontakt@twitnic.de"
 
 android {
-    namespace = "ninja.richter.soundfork"
+    namespace = "codes.offline.soundfork"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "ninja.richter.soundfork"
+        applicationId = "codes.offline.soundfork"
         minSdk = 34
         targetSdk = 36
         versionCode = 1

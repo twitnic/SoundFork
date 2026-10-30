@@ -22,12 +22,14 @@ Im Hauptmenü führt „Info“ zur Entwicklerangabe für Dominic Richter und zu
 
 ## Technischer Rahmen
 
-- Package: `ninja.richter.soundfork`
+- Package: `codes.offline.soundfork`
 - App-Name: `SoundFork`
 - UI: Kotlin + Jetpack Compose
 - Compile SDK: 36
 - Min SDK: 34 (Android 14)
 - Target SDK: 36
+
+Android behandelt diese Application-ID als eigenständige App. Eine vorhandene Installation mit einem anderen Paketnamen wird nicht überschrieben; deren Einstellungen, Favoriten und Verlauf werden nicht automatisch übernommen.
 
 ## Tablet- und Fensterlayouts
 
