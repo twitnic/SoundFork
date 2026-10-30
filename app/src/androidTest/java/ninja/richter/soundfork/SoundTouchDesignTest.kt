@@ -93,7 +93,7 @@ class SoundTouchDesignTest {
         compose.onNodeWithText("Gespeicherte Presets").assertIsDisplayed()
         snapshot("presets-de")
         compose.runOnIdle { ui.value = ui.value.copy(devicePage = SoundForkDevicePage.RADIO) }
-        compose.onNodeWithText("Alle Sender").assertIsDisplayed()
+        compose.onNodeWithText("Gespeicherte").assertIsDisplayed()
         snapshot("radio-de")
     }
 

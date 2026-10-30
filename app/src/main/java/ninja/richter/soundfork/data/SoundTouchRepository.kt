@@ -455,7 +455,7 @@ class SoundTouchRepository(
         host: String,
         streamUrl: String,
         controlPort: Int = 8091
-    ) {
+    ): String {
         val normalizedUrl = streamUrl.trim()
         if (normalizedUrl.isBlank()) {
             throw IOException("Stream-URL fehlt")
@@ -508,6 +508,7 @@ class SoundTouchRepository(
             )
             throw IOException("DLNA Play konnte nicht gestartet werden (HTTP ${playCode ?: "n/a"}): $responsePreview")
         }
+        return setUriResult.streamUrl ?: playableUrl
     }
 
     private suspend fun resolvePlayableStreamUrl(streamUrl: String): String {
@@ -620,6 +621,7 @@ class SoundTouchRepository(
         val attempts = streamUrls.flatMap { candidateUrl ->
             listOf(
                 SoapBodyVariant(
+                    streamUrl = candidateUrl,
                     name = "CurrentURI compact url=$candidateUrl",
                     body = buildSetAvTransportUriBody(
                         streamUrl = candidateUrl,
@@ -629,6 +631,7 @@ class SoundTouchRepository(
                     )
                 ),
                 SoapBodyVariant(
+                    streamUrl = candidateUrl,
                     name = "CurrentURI CDATA url=$candidateUrl",
                     body = buildSetAvTransportUriBody(
                         streamUrl = candidateUrl,
@@ -638,6 +641,7 @@ class SoundTouchRepository(
                     )
                 ),
                 SoapBodyVariant(
+                    streamUrl = candidateUrl,
                     name = "CurrentURI DIDL audio/mpeg url=$candidateUrl",
                     body = buildSetAvTransportUriBody(
                         streamUrl = candidateUrl,
@@ -647,6 +651,7 @@ class SoundTouchRepository(
                     )
                 ),
                 SoapBodyVariant(
+                    streamUrl = candidateUrl,
                     name = "NewURI compact url=$candidateUrl",
                     body = buildSetAvTransportUriBody(
                         streamUrl = candidateUrl,
@@ -670,6 +675,7 @@ class SoundTouchRepository(
             )
             val attemptResult = SoapAttemptResult(
                 variant = attempt.name,
+                streamUrl = attempt.streamUrl,
                 result = result
             )
             if (result.code in 200..299) {
@@ -1090,11 +1096,13 @@ class SoundTouchRepository(
     )
 
     private data class SoapBodyVariant(
+        val streamUrl: String,
         val name: String,
         val body: String
     )
 
     private data class SoapAttemptResult(
+        val streamUrl: String? = null,
         val variant: String,
         val result: NetworkResult
     )

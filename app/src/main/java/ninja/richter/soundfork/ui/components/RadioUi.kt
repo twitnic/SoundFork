@@ -6,9 +6,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -16,6 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -27,7 +32,47 @@ import androidx.compose.ui.unit.dp
 import ninja.richter.soundfork.data.NowPlayingState
 import ninja.richter.soundfork.model.RadioStation
 import ninja.richter.soundfork.model.RecentRadioStation
+import ninja.richter.soundfork.model.RadioBrowserQuery
+import ninja.richter.soundfork.model.SoundForkUiState
 import java.util.Date
+
+@OptIn(ExperimentalLayoutApi::class)
+fun LazyListScope.radioPage(
+    state: SoundForkUiState,
+    onRadioBrowserOpen: (Boolean) -> Unit,
+    onRadioBrowserQueryChanged: (RadioBrowserQuery) -> Unit,
+    onSearchRadioBrowser: (Boolean) -> Unit,
+    onRadioSearchQueryChanged: (String) -> Unit,
+    onToggleFavorite: (RadioStation) -> Unit,
+    onPlayStation: (RadioStation) -> Unit
+) {
+    item { NowPlayingCard(state.nowPlaying, state.currentRadioStation) }
+    if (state.recentRadioStations.isNotEmpty()) {
+        item {
+            RecentRadioCarousel(state.recentRadioStations, state.currentRadioStation,
+                state.isStartingDlnaStream || state.isLoadingSnapshot) { onPlayStation(it.asRadioStation()) }
+        }
+    }
+    item {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(state.isRadioBrowserOpen, { onRadioBrowserOpen(true) },
+                { Text(stringResource(R.string.radio_browser_title)) })
+            FilterChip(!state.isRadioBrowserOpen, { onRadioBrowserOpen(false) },
+                { Text(stringResource(R.string.radio_library)) })
+        }
+    }
+    if (state.isRadioBrowserOpen) {
+        radioBrowserDiscovery(state.radioBrowser, state.currentRadioStation, state.favoriteRadioStreamUrls,
+            state.confirmedRadioStreamUrls, state.isStartingDlnaStream || state.isLoadingSnapshot,
+            onRadioBrowserQueryChanged, onSearchRadioBrowser, onToggleFavorite, onPlayStation,
+            onOpenLibrary = { onRadioBrowserOpen(false) })
+        state.dlnaStreamStatus?.let { status -> item { StatusMessage(status, isErrorStatus(status)) } }
+    } else item {
+        RadioStationListCard(state.radioStations, state.currentRadioStation, state.radioSearchQuery,
+            state.favoriteRadioStreamUrls, state.dlnaStreamStatus, state.isStartingDlnaStream || state.isLoadingSnapshot,
+            onRadioSearchQueryChanged, onToggleFavorite, onPlayStation, state.confirmedRadioStreamUrls)
+    }
+}
 
 @Composable
 fun NowPlayingCard(nowPlaying: NowPlayingState?, station: RadioStation?) {
@@ -90,17 +135,26 @@ fun RecentRadioCard(station: RecentRadioStation, active: Boolean, enabled: Boole
 fun RadioStationListCard(stations: List<RadioStation>, activeStation: RadioStation?, searchQuery: String,
                         favoriteStreamUrls: Set<String>, status: String?, isStarting: Boolean,
                         onSearchQueryChanged: (String) -> Unit, onToggleFavorite: (RadioStation) -> Unit,
-                        onPlayStation: (RadioStation) -> Unit) {
+                        onPlayStation: (RadioStation) -> Unit,
+                        confirmedStreamUrls: Set<String> = emptySet()) {
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val displayedStations = remember(stations, searchQuery, favoriteStreamUrls, favoritesOnly) {
         stations.filter { it.matchesSearch(searchQuery) && (!favoritesOnly || it.streamUrl in favoriteStreamUrls) }
             .sortedWith(compareByDescending<RadioStation> { it.streamUrl in favoriteStreamUrls }.thenBy { it.name.lowercase() })
     }
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth().testTag("radio-library"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.radio_library_hint), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         TextField(searchQuery, onSearchQueryChanged, Modifier.fillMaxWidth(), singleLine = true,
             placeholder = { Text(stringResource(R.string.search_station)) },
             leadingIcon = { TouchIcon(TouchSymbol.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = {
+                keyboard?.hide()
+                focusManager.clearFocus()
+            }),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -114,12 +168,17 @@ fun RadioStationListCard(stations: List<RadioStation>, activeStation: RadioStati
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             Column {
                 if (displayedStations.isEmpty()) {
-                    Text(stringResource(if (favoritesOnly) R.string.no_favorite_stations else R.string.no_stations_found),
+                    Text(stringResource(when {
+                        favoritesOnly -> R.string.no_favorite_stations
+                        stations.isEmpty() -> R.string.radio_library_empty
+                        else -> R.string.no_stations_found
+                    }),
                         Modifier.padding(20.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 displayedStations.forEachIndexed { index, station ->
                     RadioStationRow(station, station.matches(activeStation), station.streamUrl in favoriteStreamUrls,
-                        !isStarting, { onToggleFavorite(station) }, { onPlayStation(station) })
+                        !isStarting, { onToggleFavorite(station) }, { onPlayStation(station) },
+                        radioCompatibilityLabel(station, confirmedStreamUrls))
                     if (index < displayedStations.lastIndex) HorizontalDivider(Modifier.padding(start = 76.dp))
                 }
             }
@@ -130,7 +189,7 @@ fun RadioStationListCard(stations: List<RadioStation>, activeStation: RadioStati
 
 @Composable
 fun RadioStationRow(station: RadioStation, active: Boolean, favorite: Boolean, enabled: Boolean,
-                    onToggleFavorite: () -> Unit, onClick: () -> Unit) {
+                    onToggleFavorite: () -> Unit, onClick: () -> Unit, compatibility: String? = null) {
     Row(Modifier.fillMaxWidth().semantics { selected = active }
         .background(if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
         .clickable(enabled, role = Role.Button, onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
@@ -141,6 +200,9 @@ fun RadioStationRow(station: RadioStation, active: Boolean, favorite: Boolean, e
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(if (active) stringResource(R.string.active) else station.description, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            compatibility?.let {
+                Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         IconButton(onToggleFavorite, enabled = enabled) {
             TouchIcon(if (favorite) TouchSymbol.Check else TouchSymbol.Heart,
@@ -149,6 +211,11 @@ fun RadioStationRow(station: RadioStation, active: Boolean, favorite: Boolean, e
         }
     }
 }
+
+@Composable
+fun radioCompatibilityLabel(station: RadioStation, confirmedStreamUrls: Set<String>): String? =
+    if (station.radioBrowserId == null) null else stringResource(
+        if (station.streamUrl in confirmedStreamUrls) R.string.radio_confirmed else R.string.radio_untested)
 
 fun RadioStation.matchesSearch(query: String): Boolean = query.trim().let {
     it.isBlank() || name.contains(it, true) || description.contains(it, true) || streamUrl.contains(it, true)

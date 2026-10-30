@@ -45,6 +45,7 @@ fun SoundForkDevicePage.titleResource(): Int = when (this) {
     SoundForkDevicePage.RECENTS -> R.string.nav_recents
     SoundForkDevicePage.ZONES -> R.string.nav_zones
     SoundForkDevicePage.DEBUG -> R.string.nav_debug
+    SoundForkDevicePage.INFO -> R.string.nav_info
 }
 
 @Composable
@@ -124,6 +125,8 @@ private fun ResponsiveSoundTouchScaffold(
     content: @Composable (PaddingValues) -> Unit
 ) {
     val connected = state.screenMode == SoundForkScreenMode.DEVICE
+    val showingInfo = state.devicePage == SoundForkDevicePage.INFO
+    BackHandler(enabled = showingInfo) { onPage(SoundForkDevicePage.RADIO) }
     val scope = rememberCoroutineScope()
     val foldSeparated = LocalFoldSeparated.current
     var playerOpen by rememberSaveable { mutableStateOf(false) }
@@ -154,12 +157,14 @@ private fun ResponsiveSoundTouchScaffold(
                 Column {
                     CenterAlignedTopAppBar(
                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                        title = { Text(stringResource(if (connected) state.devicePage.titleResource() else R.string.app_name),
+                        title = { Text(stringResource(if (connected || showingInfo) state.devicePage.titleResource() else R.string.app_name),
                             style = MaterialTheme.typography.titleMedium, letterSpacing = 2.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
                             if (connected && !persistentNavigation) IconButton({ scope.launch { drawer.open() } }) {
                                 TouchIcon(TouchSymbol.Menu, stringResource(R.string.open_menu))
+                            } else if (!connected && showingInfo) IconButton({ onPage(SoundForkDevicePage.RADIO) }) {
+                                TouchIcon(TouchSymbol.Back, stringResource(R.string.navigate_back))
                             }
                         },
                         actions = {
@@ -169,6 +174,10 @@ private fun ResponsiveSoundTouchScaffold(
                                 }
                                 IconButton({ onKey("POWER") }, enabled = !state.isSendingTransportKey && !state.isLoadingSnapshot) {
                                     TouchIcon(TouchSymbol.Power, stringResource(R.string.power_toggle))
+                                }
+                            } else if (!showingInfo) {
+                                IconButton({ onPage(SoundForkDevicePage.INFO) }) {
+                                    TouchIcon(TouchSymbol.Info, stringResource(R.string.nav_info))
                                 }
                             }
                         }

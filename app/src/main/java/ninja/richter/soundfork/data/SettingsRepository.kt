@@ -12,6 +12,10 @@ interface SettingsRepository {
     fun saveLastSpeaker(speaker: SavedSpeaker)
     fun favoriteStreamUrls(): Set<String>
     fun saveFavoriteStreamUrls(urls: Set<String>)
+    fun savedRadioStations(): List<RadioStation>
+    fun saveRadioStations(stations: List<RadioStation>)
+    fun confirmedStreams(speaker: String): Set<String>
+    fun confirmStream(speaker: String, streamUrl: String): Set<String>
     fun recentStations(catalog: List<RadioStation>): List<RecentRadioStation>
     fun recordStation(station: RadioStation, recents: List<RecentRadioStation>, catalog: List<RadioStation>): List<RecentRadioStation>
 }
@@ -20,6 +24,12 @@ class SharedPreferencesSettingsRepository(private val preferences: SharedPrefere
     constructor(context: Context) : this(context.getSharedPreferences("soundfork_preferences", Context.MODE_PRIVATE))
 
     private val recentRadioStore = RecentRadioStore(preferences)
+    private val radioLibrary = RadioLibraryStore(preferences)
+
+    override fun savedRadioStations() = radioLibrary.load()
+    override fun saveRadioStations(stations: List<RadioStation>) = radioLibrary.save(stations)
+    override fun confirmedStreams(speaker: String) = radioLibrary.confirmedStreams(speaker)
+    override fun confirmStream(speaker: String, streamUrl: String) = radioLibrary.confirmStream(speaker, streamUrl)
 
     override fun lastSpeaker(): SavedSpeaker? {
         val host = preferences.getString("last_host", null)?.trim()?.takeIf { it.isNotBlank() } ?: return null

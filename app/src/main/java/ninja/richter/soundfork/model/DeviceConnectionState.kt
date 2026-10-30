@@ -28,6 +28,7 @@ fun SoundForkUiState.disconnected(error: String? = null): SoundForkUiState = cle
 )
 
 private fun SoundForkUiState.clearedDevice(): SoundForkUiState = copy(
+    confirmedRadioStreamUrls = emptySet(),
     selectedSummary = null, selectedVolume = null, selectedBass = null, selectedToneControls = null,
     currentRadioStation = null, nowPlaying = null, currentSource = null, sources = emptyList(),
     presets = emptyList(), boseRecents = emptyList(), zoneState = null, zoneXml = null,

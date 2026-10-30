@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import ninja.richter.soundfork.model.RadioStation
 import ninja.richter.soundfork.model.RecentRadioStation
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -19,7 +20,7 @@ class RecentRadioStore(
                 for (index in 0 until jsonArray.length()) {
                     val item = jsonArray.optJSONObject(index) ?: continue
                     val streamUrl = item.optString("streamUrl").trim()
-                    if (streamUrl.isBlank()) {
+                    if (streamUrl.toHttpUrlOrNull() == null) {
                         continue
                     }
                     add(
@@ -28,7 +29,8 @@ class RecentRadioStore(
                             description = item.optString("description").trim().ifBlank { "Internet Radio" },
                             streamUrl = streamUrl,
                             lastPlayedAt = item.optLong("lastPlayedAt", 0L),
-                            playCount = item.optInt("playCount", 1).coerceAtLeast(1)
+                            playCount = item.optInt("playCount", 1).coerceAtLeast(1),
+                            radioBrowserId = item.optString("radioBrowserId").takeIf { it.isNotBlank() }
                         ).withCatalogData(catalogStations)
                     )
                 }
@@ -48,7 +50,7 @@ class RecentRadioStore(
         currentStations: List<RecentRadioStation>,
         catalogStations: List<RadioStation>
     ): List<RecentRadioStation> {
-        if (station.streamUrl.isBlank()) {
+        if (station.streamUrl.toHttpUrlOrNull() == null) {
             return currentStations
         }
 
@@ -58,7 +60,8 @@ class RecentRadioStore(
             description = station.description,
             streamUrl = station.streamUrl,
             lastPlayedAt = System.currentTimeMillis(),
-            playCount = (existing?.playCount ?: 0) + 1
+            playCount = (existing?.playCount ?: 0) + 1,
+            radioBrowserId = station.radioBrowserId ?: existing?.radioBrowserId
         ).withCatalogData(catalogStations)
         val updatedStations = (listOf(updatedStation) + currentStations.filterNot {
             it.streamUrl == station.streamUrl
@@ -79,6 +82,7 @@ class RecentRadioStore(
                     .put("streamUrl", station.streamUrl)
                     .put("lastPlayedAt", station.lastPlayedAt)
                     .put("playCount", station.playCount)
+                    .put("radioBrowserId", station.radioBrowserId.orEmpty())
             )
         }
         preferences.edit()
@@ -92,7 +96,8 @@ class RecentRadioStore(
         val catalogStation = catalogStations.firstOrNull { it.streamUrl == streamUrl } ?: return this
         return copy(
             name = catalogStation.name,
-            description = catalogStation.description
+            description = catalogStation.description,
+            radioBrowserId = catalogStation.radioBrowserId ?: radioBrowserId
         )
     }
 

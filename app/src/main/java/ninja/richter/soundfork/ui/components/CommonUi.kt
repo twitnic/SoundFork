@@ -61,7 +61,8 @@ private val navigationPages = listOf(
     SoundForkDevicePage.DEVICE to TouchSymbol.Settings,
     SoundForkDevicePage.SOURCE to TouchSymbol.Source,
     SoundForkDevicePage.ZONES to TouchSymbol.Zone,
-    SoundForkDevicePage.DEBUG to TouchSymbol.Debug
+    SoundForkDevicePage.DEBUG to TouchSymbol.Debug,
+    SoundForkDevicePage.INFO to TouchSymbol.Info
 )
 
 @Composable

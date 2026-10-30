@@ -89,6 +89,7 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel(), folds: List<Windo
                 SoundForkDevicePage.RECENTS -> viewModel.openRecentsPage()
                 SoundForkDevicePage.ZONES -> viewModel.openZonesPage()
                 SoundForkDevicePage.DEBUG -> viewModel.openDebugPage()
+                SoundForkDevicePage.INFO -> viewModel.openInfoPage()
             }
         },
         onDiscovery = viewModel::openDiscoveryScreen,
@@ -105,7 +106,9 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel(), folds: List<Windo
                     .padding(horizontal = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-            if (!isDeviceScreen) {
+            if (state.devicePage == SoundForkDevicePage.INFO) {
+                item { InfoPage() }
+            } else if (!isDeviceScreen) {
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                 }
@@ -231,42 +234,16 @@ fun SoundForkAppScreen(viewModel: MainViewModel = viewModel(), folds: List<Windo
                 }
 
                 when (state.devicePage) {
-                    SoundForkDevicePage.RADIO -> {
-                        item {
-                            NowPlayingCard(
-                                nowPlaying = state.nowPlaying,
-                                station = state.currentRadioStation
-                            )
-                        }
-
-                        if (state.recentRadioStations.isNotEmpty()) {
-                            item {
-                                RecentRadioCarousel(
-                                    stations = state.recentRadioStations,
-                                    activeStation = state.currentRadioStation,
-                                    isStarting = state.isStartingDlnaStream,
-                                    onPlayStation = { recentStation ->
-                                        viewModel.playRadioStation(recentStation.asRadioStation())
-                                    }
-                                )
-                            }
-                        }
-
-                        item {
-                            RadioStationListCard(
-                                stations = state.radioStations,
-                                activeStation = state.currentRadioStation,
-                                searchQuery = state.radioSearchQuery,
-                                favoriteStreamUrls = state.favoriteRadioStreamUrls,
-                                status = state.dlnaStreamStatus,
-                                isStarting = state.isStartingDlnaStream,
-                                onSearchQueryChanged = viewModel::onRadioSearchQueryChanged,
-                                onToggleFavorite = viewModel::toggleRadioFavorite,
-                                onPlayStation = viewModel::playRadioStation
-                            )
-                        }
-
-                    }
+                    SoundForkDevicePage.INFO -> Unit // Rendered independently of the speaker connection above.
+                    SoundForkDevicePage.RADIO -> radioPage(
+                        state = state,
+                        onRadioBrowserOpen = viewModel::setRadioBrowserOpen,
+                        onRadioBrowserQueryChanged = viewModel::onRadioBrowserQueryChanged,
+                        onSearchRadioBrowser = viewModel::searchRadioBrowser,
+                        onRadioSearchQueryChanged = viewModel::onRadioSearchQueryChanged,
+                        onToggleFavorite = viewModel::toggleRadioFavorite,
+                        onPlayStation = viewModel::playRadioStation
+                    )
 
                     SoundForkDevicePage.DEVICE -> {
                         state.selectedHost?.let { selectedHost ->

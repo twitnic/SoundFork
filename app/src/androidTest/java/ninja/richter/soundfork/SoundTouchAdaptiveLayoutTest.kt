@@ -90,7 +90,9 @@ class SoundTouchAdaptiveLayoutTest {
                                 LazyColumn(Modifier.fillMaxSize().testTag("page_list").padding(padding).padding(horizontal = 20.dp),
                                     state = listState, verticalArrangement = Arrangement.spacedBy(20.dp)) {
                                     item { Spacer(Modifier.height(8.dp)) }
-                                    if (state.screenMode == SoundForkScreenMode.DISCOVERY) {
+                                    if (state.devicePage == SoundForkDevicePage.INFO) {
+                                        item { InfoPage() }
+                                    } else if (state.screenMode == SoundForkScreenMode.DISCOVERY) {
                                         item { Text("Lautsprecher verbinden", Modifier.testTag("discovery_content")) }
                                     } else when (state.devicePage) {
                                         SoundForkDevicePage.RADIO -> {
@@ -144,6 +146,14 @@ class SoundTouchAdaptiveLayoutTest {
         openNavigation(width.value)
         compose.onNodeWithText("Debug").performScrollTo().performClick()
         compose.onNodeWithTag("selected_page").assertTextEquals("DEBUG")
+        openNavigation(width.value)
+        compose.onNodeWithText(pageText(R.string.nav_info)).performScrollTo().performClick()
+        compose.onNodeWithText(pageText(R.string.about_author)).assertIsDisplayed()
+        compose.onNodeWithTag("page_list").performScrollToNode(hasText(pageText(R.string.about_independent_body)))
+        compose.onNodeWithText(pageText(R.string.about_independent_body)).assertIsDisplayed()
+        snapshot("info")
+        pressBack()
+        compose.runOnIdle { assertEquals(SoundForkDevicePage.RADIO, ui.value.devicePage) }
         openNavigation(width.value)
         compose.onNodeWithText("Lautsprecher suchen").performScrollTo().performClick()
         compose.onNodeWithTag("discovery_content").assertIsDisplayed()
@@ -318,6 +328,11 @@ class SoundTouchAdaptiveLayoutTest {
         compose.onNodeWithTag("discovery_content").assertIsDisplayed()
         compose.onNodeWithTag("fold_player_pane").assertDoesNotExist()
         assertTrue(compose.onNodeWithTag("fold_page_pane").fetchSemanticsNode().boundsInWindow.left >= fold.bounds.right)
+        compose.onNodeWithContentDescription(pageText(R.string.nav_info)).performClick()
+        compose.onNodeWithTag("info-page").assertIsDisplayed()
+        compose.onNodeWithTag("fold_player_pane").assertDoesNotExist()
+        compose.onNodeWithContentDescription(pageText(R.string.navigate_back)).performClick()
+        compose.onNodeWithTag("discovery_content").assertIsDisplayed()
     }
 
     private fun insertFold(orientation: FoldOrientation, fraction: Float = 0.5f, thickness: Float = 0f): WindowFold {

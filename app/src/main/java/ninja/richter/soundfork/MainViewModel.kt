@@ -1,10 +1,8 @@
 package ninja.richter.soundfork
 
 import android.app.Application
-import android.content.Context
 import android.util.Log
 import androidx.annotation.StringRes
-import org.xmlpull.v1.XmlPullParser
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
@@ -23,6 +21,7 @@ import ninja.richter.soundfork.data.PresetItem
 import ninja.richter.soundfork.data.SavedSpeaker
 import ninja.richter.soundfork.data.SharedPreferencesSettingsRepository
 import ninja.richter.soundfork.data.SettingsRepository
+import ninja.richter.soundfork.data.RadioBrowserRepository
 import ninja.richter.soundfork.data.SourceItem
 import ninja.richter.soundfork.data.SoundTouchDiscovery
 import ninja.richter.soundfork.data.SoundTouchGabboClient
@@ -31,6 +30,10 @@ import ninja.richter.soundfork.data.SoundTouchRepository
 import ninja.richter.soundfork.data.ZoneMember
 import ninja.richter.soundfork.data.ZoneState
 import ninja.richter.soundfork.model.RadioStation
+import ninja.richter.soundfork.model.RadioBrowserQuery
+import ninja.richter.soundfork.model.RadioBrowserSearchState
+import ninja.richter.soundfork.model.confirmsRadioStream
+import ninja.richter.soundfork.model.localRadioLibrary
 import ninja.richter.soundfork.model.SoundForkDevicePage
 import ninja.richter.soundfork.model.SoundForkUiState
 import ninja.richter.soundfork.media.SoundForkMediaService
@@ -49,6 +52,8 @@ import ninja.richter.soundfork.usecase.DeviceControlUseCase
 import ninja.richter.soundfork.usecase.GabboController
 import ninja.richter.soundfork.usecase.GabboStatusTexts
 import ninja.richter.soundfork.usecase.PlaybackUseCase
+import ninja.richter.soundfork.usecase.RadioBrowserSearchController
+import ninja.richter.soundfork.usecase.DeviceSession
 import ninja.richter.soundfork.usecase.PresetUseCase
 import ninja.richter.soundfork.usecase.ZoneUseCase
 import kotlin.math.roundToInt
@@ -63,18 +68,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val discovery = SoundTouchDiscovery(application.applicationContext, repository)
     private val gabboController = GabboController(SoundTouchGabboClient())
     private val settings: SettingsRepository = SharedPreferencesSettingsRepository(application)
+    private val radioBrowserRepository = RadioBrowserRepository()
+    private val radioSearch = RadioBrowserSearchController(viewModelScope, radioBrowserRepository::search)
     private val connection = DeviceConnectionController(sessions, repository::loadSnapshot)
     private val playbackRefresh = PlaybackRefreshController(sessions, playbackUseCase::readNowPlaying)
     private val playbackResolver = PlaybackStateResolver()
-    private val initialRadioStations = loadRadioStations(application)
     private val initialFavoriteRadioStreamUrls = settings.favoriteStreamUrls()
+    private val initialSavedRadioStations = settings.savedRadioStations()
+    private val initialRecentRadioStations = settings.recentStations(initialSavedRadioStations)
+    private val initialRadioStations = localRadioLibrary(initialSavedRadioStations, initialRecentRadioStations, initialFavoriteRadioStreamUrls)
     private var gabboSnapshotRefreshJob: Job? = null
+    private data class PendingRadioConfirmation(
+        val session: DeviceSession, val speaker: String, val station: RadioStation,
+        val acceptedUrl: String, val startedAt: Long = android.os.SystemClock.elapsedRealtime()
+    )
+    private var pendingRadioConfirmation: PendingRadioConfirmation? = null
+    private var activeRadioRequest: Pair<String, RadioStation>? = null
 
     private val _uiState = MutableStateFlow(
         SoundForkUiState(
             radioStations = initialRadioStations,
             favoriteRadioStreamUrls = initialFavoriteRadioStreamUrls,
-            recentRadioStations = settings.recentStations(initialRadioStations)
+            recentRadioStations = initialRecentRadioStations
         )
     )
     val uiState: StateFlow<SoundForkUiState> = _uiState.asStateFlow()
@@ -104,6 +119,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(radioSearchQuery = value) }
     }
 
+    fun setRadioBrowserOpen(open: Boolean) {
+        _uiState.update { it.copy(isRadioBrowserOpen = open) }
+    }
+
+    fun onRadioBrowserQueryChanged(query: RadioBrowserQuery) {
+        radioSearch.cancel()
+        _uiState.update { it.copy(radioBrowser = RadioBrowserSearchState(query = query)) }
+    }
+
+    fun searchRadioBrowser(loadMore: Boolean = false) {
+        val current = _uiState.value.radioBrowser
+        if (current.query.isEmpty() || current.isSearching || (loadMore && !current.hasMore)) return
+        val offset = if (loadMore) current.nextOffset else 0
+        _uiState.update { it.copy(radioBrowser = current.copy(isSearching = true, error = null,
+            stations = if (loadMore) current.stations else emptyList(),
+            hasSearched = loadMore && current.hasSearched, hasMore = loadMore && current.hasMore,
+            nextOffset = if (loadMore) current.nextOffset else 0)) }
+        radioSearch.search(current.query.normalized(), offset) { result ->
+            _uiState.update { state ->
+                state.copy(radioBrowser = result.fold(
+                    onSuccess = { page -> state.radioBrowser.copy(
+                        stations = ((if (loadMore) current.stations else emptyList()) + page.stations).distinctBy { it.streamUrl },
+                        isSearching = false, hasSearched = true, error = null,
+                        nextOffset = page.nextOffset, hasMore = page.hasMore) },
+                    onFailure = { state.radioBrowser.copy(isSearching = false,
+                        error = str(R.string.radio_browser_error)) }
+                ))
+            }
+        }
+    }
+
     fun toggleRadioFavorite(station: RadioStation) {
         val key = station.favoriteKey()
         if (key.isBlank()) {
@@ -116,7 +162,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             favorites + key
         }
         settings.saveFavoriteStreamUrls(updatedFavorites)
-        _uiState.update { it.copy(favoriteRadioStreamUrls = updatedFavorites) }
+        val savedStations = if (key in updatedFavorites) {
+            (settings.savedRadioStations().filterNot { it.streamUrl == key } + station)
+        } else settings.savedRadioStations().filterNot { it.streamUrl == key }
+        settings.saveRadioStations(savedStations)
+        val libraryStations = localRadioLibrary(savedStations, _uiState.value.recentRadioStations, updatedFavorites)
+        _uiState.update { it.copy(favoriteRadioStreamUrls = updatedFavorites,
+            radioStations = libraryStations) }
     }
 
     fun discoverSpeakers() {
@@ -202,12 +254,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         connection.connect(
             host, port,
             onConnecting = { session ->
+                pendingRadioConfirmation = null
+                activeRadioRequest = null
                 _uiState.update { it.connectingTo(session.host, session.port, fallbackToDiscoveryOnFailure, str(R.string.live_updates_connecting)) }
             },
             onConnected = { session, snapshot ->
                 saveLastSpeaker(session.host, session.port)
                 val station = radioStationFromNowPlaying(snapshot.nowPlaying, _uiState.value.radioStations)
                 _uiState.update { it.connectedTo(session.host, session.port, snapshot, station) }
+                _uiState.update { it.copy(confirmedRadioStreamUrls = settings.confirmedStreams(speakerKey())) }
                 updateMediaNotification()
                 startGabboUpdates(session.host, session.port)
                 startNowPlayingRefresh(session.host, session.port)
@@ -516,11 +571,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         playDlnaStreamUrl(streamUrl)
     }
 
-    fun playRadioChemnitz() {
-        playRadioStation(_uiState.value.radioStations.firstOrNull() ?: FALLBACK_RADIO_STATION)
-    }
-
     fun playRadioStation(station: RadioStation) {
+        if (_uiState.value.isStartingDlnaStream || _uiState.value.isLoadingSnapshot || _uiState.value.selectedHost == null) return
         _uiState.update {
             it.copy(
                 currentRadioStation = station,
@@ -541,6 +593,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        val session = sessions.current ?: return
+        pendingRadioConfirmation = null
+        activeRadioRequest = null
         Log.i(TAG, "playDlnaStream() host=$host url=$streamUrl")
         sessions.launch {
             _uiState.update {
@@ -554,14 +609,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     host = host,
                     streamUrl = streamUrl
                 )
-            }.onSuccess {
+            }.onSuccess { acceptedUrl ->
+                stationToRecord?.let { station ->
+                    activeRadioRequest = acceptedUrl to station
+                    if (station.radioBrowserId != null) {
+                        pendingRadioConfirmation = PendingRadioConfirmation(session, speakerKey(), station, acceptedUrl)
+                        viewModelScope.launch {
+                            runSuspendCatching { radioBrowserRepository.countClick(station.radioBrowserId) }
+                        }
+                    }
+                }
                 stationToRecord?.let(::recordRecentRadioStation)
                 refreshNowPlayingOnce(host, state.selectedPort)
                 updateMediaNotification()
                 _uiState.update {
                     it.copy(
                         isStartingDlnaStream = false,
-                        dlnaStreamStatus = str(R.string.dlna_started)
+                        dlnaStreamStatus = if (stationToRecord?.radioBrowserId != null) {
+                            if (pendingRadioConfirmation != null) str(R.string.radio_stream_requested) else null
+                        } else str(R.string.dlna_started)
                     )
                 }
             }.onFailure { throwable ->
@@ -898,12 +964,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openDiscoveryScreen() {
+        pendingRadioConfirmation = null
+        activeRadioRequest = null
         Log.i(TAG, "openDiscoveryScreen()")
         sessions.close()
         stopNowPlayingRefresh()
         stopGabboUpdates(clearStatus = true)
         SoundForkMediaService.stop(getApplication())
-        _uiState.update { it.disconnected() }
+        _uiState.update { it.disconnected().copy(devicePage = SoundForkDevicePage.RADIO) }
     }
 
     fun openRadioPage() {
@@ -946,6 +1014,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update {
             it.copy(devicePage = SoundForkDevicePage.DEBUG)
         }
+    }
+
+    fun openInfoPage() {
+        _uiState.update { it.copy(devicePage = SoundForkDevicePage.INFO) }
     }
 
     fun refreshSelectedHost() {
@@ -1128,6 +1200,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (nowPlaying == null) {
                 markPlaybackUnavailable(result.exceptionOrNull()?.speakerErrorMessage(getApplication(), R.string.speaker_unreachable) ?: str(R.string.speaker_unreachable))
             } else {
+                confirmPendingRadioStream(nowPlaying)
                 val active = nowPlaying.hasActivePlayback()
                 val station = radioStationFromNowPlaying(nowPlaying, _uiState.value.radioStations)
                 _uiState.update {
@@ -1171,45 +1244,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun loadRadioStations(context: Context): List<RadioStation> {
-        return runCatching {
-            val parser = context.resources.getXml(R.xml.radio_stations)
-            val stations = mutableListOf<RadioStation>()
-            parser.use {
-                var eventType = it.eventType
-                while (eventType != XmlPullParser.END_DOCUMENT) {
-                    if (eventType == XmlPullParser.START_TAG && it.name == "station") {
-                        val name = it.getAttributeValue(null, "name")?.trim().orEmpty()
-                        val description = it.getAttributeValue(null, "description")?.trim().orEmpty()
-                        val streamUrl = it.getAttributeValue(null, "streamUrl")?.trim().orEmpty()
-                        if (name.isNotBlank() && streamUrl.isNotBlank()) {
-                            stations += RadioStation(
-                                name = name,
-                                description = description.ifBlank { str(R.string.internet_radio) },
-                                streamUrl = streamUrl
-                            )
-                        }
-                    }
-                    eventType = it.next()
-                }
-            }
-            stations.ifEmpty { listOf(FALLBACK_RADIO_STATION) }
-        }.onFailure { throwable ->
-            Log.w(TAG, "loadRadioStations() failed error=${throwable.message}", throwable)
-        }.getOrElse {
-            listOf(FALLBACK_RADIO_STATION)
-        }
-    }
-
     private fun recordRecentRadioStation(station: RadioStation) {
         val state = _uiState.value
         val updatedStations = settings.recordStation(
             station = station,
             recents = state.recentRadioStations,
-            catalog = state.radioStations
+            catalog = state.radioBrowser.stations + settings.savedRadioStations()
         )
         _uiState.update {
-            it.copy(recentRadioStations = updatedStations)
+            it.copy(recentRadioStations = updatedStations,
+                radioStations = localRadioLibrary(settings.savedRadioStations(), updatedStations, it.favoriteRadioStreamUrls))
         }
     }
 
@@ -1250,8 +1294,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private fun radioStationFromNowPlaying(nowPlaying: NowPlayingState?, stations: List<RadioStation>): RadioStation? =
-        playbackResolver.station(nowPlaying, stations, str(R.string.active_on_speaker))
+    private fun radioStationFromNowPlaying(nowPlaying: NowPlayingState?, stations: List<RadioStation>): RadioStation? {
+        activeRadioRequest?.let { (url, station) ->
+            if (nowPlaying.hasActivePlayback() && nowPlaying?.location == url) return station
+        }
+        val state = _uiState.value
+        return playbackResolver.station(nowPlaying,
+            stations + state.radioBrowser.stations + listOfNotNull(state.currentRadioStation) + state.recentRadioStations.map { it.asRadioStation() },
+            str(R.string.active_on_speaker))
+    }
+
+    private fun speakerKey(): String = _uiState.value.let {
+        it.selectedSummary?.deviceId?.takeIf(String::isNotBlank) ?: "${it.selectedHost}:${it.selectedPort}"
+    }
+
+    private fun confirmPendingRadioStream(nowPlaying: NowPlayingState) {
+        val pending = pendingRadioConfirmation ?: return
+        if (!sessions.isCurrent(pending.session) || android.os.SystemClock.elapsedRealtime() - pending.startedAt > 30_000) {
+            pendingRadioConfirmation = null
+            return
+        }
+        if (!nowPlaying.confirmsRadioStream(pending.acceptedUrl)) return
+        val confirmed = settings.confirmStream(pending.speaker, pending.station.streamUrl)
+        pendingRadioConfirmation = null
+        _uiState.update { it.copy(confirmedRadioStreamUrls = confirmed) }
+    }
 
     private fun Set<GabboUpdateType>.toDisplayText(): String {
         return joinToString(", ") { type ->
@@ -1280,11 +1347,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val TAG = "MainViewModel"
-        const val RADIO_CHEMNITZ_STREAM_URL = "http://web.radio.radiochemnitz.de/radiochemnitz-live/stream/mp3"
         const val MAX_DEVICE_NAME_LENGTH = 64
         const val NOW_PLAYING_REFRESH_INTERVAL_MS = 6_000L
         const val GABBO_REFRESH_DEBOUNCE_MS = 250L
         val DLNA_TRANSPORT_KEYS = setOf("PLAY", "PAUSE", "STOP")
-        val FALLBACK_RADIO_STATION = RadioStation("Radio Chemnitz", "Live MP3 Stream", RADIO_CHEMNITZ_STREAM_URL)
     }
 }

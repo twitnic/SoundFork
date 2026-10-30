@@ -6,9 +6,8 @@ import ninja.richter.soundfork.data.SoundTouchRepository
 class PlaybackUseCase(
     private val repository: SoundTouchRepository
 ) {
-    suspend fun playDlnaStream(host: String, streamUrl: String) {
+    suspend fun playDlnaStream(host: String, streamUrl: String): String =
         repository.playDlnaStream(host = host, streamUrl = streamUrl)
-    }
 
     suspend fun sendTransportKey(host: String, port: Int, key: String) {
         repository.sendKey(host = host, port = port, key = key)

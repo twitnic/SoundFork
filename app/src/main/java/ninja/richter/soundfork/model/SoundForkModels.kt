@@ -25,13 +25,15 @@ enum class SoundForkDevicePage {
     PRESETS,
     RECENTS,
     ZONES,
-    DEBUG
+    DEBUG,
+    INFO
 }
 
 data class RadioStation(
     val name: String,
     val description: String,
-    val streamUrl: String
+    val streamUrl: String,
+    val radioBrowserId: String? = null
 )
 
 data class RecentRadioStation(
@@ -39,12 +41,14 @@ data class RecentRadioStation(
     val description: String,
     val streamUrl: String,
     val lastPlayedAt: Long,
-    val playCount: Int = 1
+    val playCount: Int = 1,
+    val radioBrowserId: String? = null
 ) {
     fun asRadioStation(): RadioStation = RadioStation(
         name = name,
         description = description,
-        streamUrl = streamUrl
+        streamUrl = streamUrl,
+        radioBrowserId = radioBrowserId
     )
 }
 
@@ -54,6 +58,9 @@ data class SoundForkUiState(
     val manualHostInput: String = "",
     val radioSearchQuery: String = "",
     val radioStations: List<RadioStation> = emptyList(),
+    val isRadioBrowserOpen: Boolean = true,
+    val radioBrowser: RadioBrowserSearchState = RadioBrowserSearchState(),
+    val confirmedRadioStreamUrls: Set<String> = emptySet(),
     val favoriteRadioStreamUrls: Set<String> = emptySet(),
     val recentRadioStations: List<RecentRadioStation> = emptyList(),
     val discoveredSpeakers: List<DiscoveredSpeaker> = emptyList(),

@@ -1,6 +1,24 @@
 # SoundFork
 
-Read-only Android-App fuer Bose SoundTouch im lokalen Netzwerk.
+Android-App zur Steuerung von Bose SoundTouch im lokalen Netzwerk.
+
+## Sender entdecken
+
+Die Radio-Seite startet mit „Sender entdecken“, der Online-Suche bei [radio-browser.info](https://www.radio-browser.info/). Es gibt keine fest eingebaute Senderliste und keinen voreingestellten Ersatzsender mehr. Die Suche unterstützt Sendernamen und optionale Filter nach Land, Sprache und Genre. Die Filter werden kombiniert; Land und Sprache entsprechen den Angaben im Verzeichnis, beispielsweise `Germany` und `german`. Eine Suche nur über Filter ist ebenfalls möglich.
+
+- Die erste Version sucht ausschließlich MP3-Streams. Als defekt gemeldete Sender und HLS-Streams werden ausgefiltert; aufgelöste Stream-Adressen werden bevorzugt. Weitere Ergebnisse lassen sich seitenweise laden.
+- Antippen startet den Stream über den bestehenden DLNA-Wiedergabeweg auf dem verbundenen Lautsprecher. Die letzten zehn gestarteten Sender werden mit Name, Stream-Adresse und vorhandener Verzeichnis-ID lokal gespeichert und unter „Zuletzt gehört“ erneut angeboten. Wiederholtes Starten verschiebt den Sender nach vorn. Favoriten bleiben unabhängig vom begrenzten Verlauf erhalten.
+- „Meine Sender“ enthält ausschließlich diesen lokalen Verlauf und die Favoriten, einschließlich der gespeicherten Stream-Adressen. Beide bleiben nach einem Neustart verfügbar. Bei einer nicht erreichbaren Verzeichnissuche führt „Zu meinen Sendern“ direkt zur lokalen Auswahl. Eine erneute Auswahl benötigt keine erfolgreiche Anfrage an Radio Browser; der eigentliche Senderstream muss weiterhin erreichbar sein.
+- Bereits gespeicherte Favoriten und Verläufe bleiben erhalten. Bei älteren Favoriten, für die nur eine URL gespeichert wurde, werden die Senderdaten nach Möglichkeit aus dem Verlauf übernommen; andernfalls wird zunächst der Stream-Host angezeigt. Favorisieren speichert künftig die vollständigen Senderdaten auch ohne Verzeichnis-ID.
+- Neue Sender erscheinen als „Auf diesem Lautsprecher ungetestet“. Meldet der Lautsprecher innerhalb von 30 Sekunden ausdrücklich laufende UPNP-Wiedergabe für die tatsächlich angenommene Stream-Adresse, wird der Sender für dieses Gerät als bestätigt gespeichert. Eine angenommene Startanfrage, ein passender Sendername oder ein fehlender Wiedergabestatus reichen dafür nicht aus. Die Kennzeichnung dokumentiert eine frühere erfolgreiche Statusprüfung; sie garantiert keine dauerhafte Erreichbarkeit oder hörbare Audioausgabe.
+- Die Gerätezuordnung verwendet die Bose-Geräte-ID, ersatzweise Host und Port. Suchergebnisse werden bei Änderungen der Suche verworfen und laufende Anfragen abgebrochen. Die lokale Auswahl bleibt auch bei fehlender Internetverbindung verfügbar; zum Hören benötigt der Lautsprecher weiterhin Zugriff auf den Senderstream.
+- API-Server werden per DNS ermittelt und bei Verbindungsfehlern gewechselt, soweit weitere Server verfügbar sind. Suchanfragen tragen einen SoundFork-User-Agent; beim Start eines Verzeichnissenders wird dessen Abrufzähler aktualisiert. Der Lautsprecher lädt den Audiostream direkt vom Sender.
+
+Die Integration ist mit Unit- und Emulator-Tests für Suchabbruch, Filter, Seitenfortsetzung, Serverwechsel, Favoriten, Gerätezuordnung und Bedienung geprüft. Eine echte API-Abfrage wurde erfolgreich getestet. Die Wiedergabe auf physischer SoundTouch-Hardware steht noch aus.
+
+## Info-Seite
+
+Im Hauptmenü führt „Info“ zur Entwicklerangabe für Dominic Richter und zum Hinweis, dass SoundFork ein unabhängiges Projekt ohne geschäftliche oder organisatorische Verbindung zu Bose oder anderen Unternehmen ist. Ohne verbundenen Lautsprecher ist die Seite über das Info-Symbol auf der Verbindungsseite erreichbar.
 
 ## Technischer Rahmen
 
