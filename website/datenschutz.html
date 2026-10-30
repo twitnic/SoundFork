@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Informationen zum Datenschutz in der Android-App SoundFork und auf dieser Website: lokale Daten, Radio Browser, Diagnoseberichte und Hosting.">
+  <meta name="theme-color" content="#f6f5f1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Datenschutz – SoundFork</title>
+  <link rel="icon" href="assets/soundfork-logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#inhalt">Zum Inhalt springen</a>
+  <header class="site-header wrap">
+    <a class="brand" href="index.html" aria-label="SoundFork Startseite"><img src="assets/soundfork-logo.svg" alt="" width="38" height="38">SoundFork<span class="brand-dot">.</span></a>
+    <nav aria-label="Hauptnavigation"><a href="index.html#funktionen">Funktionen</a><a href="index.html#start">So geht’s</a><a href="datenschutz.html" aria-current="page">Datenschutz</a></nav>
+    <a class="header-contact" href="mailto:kontakt@twitnic.de">Kontakt <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main class="legal-main wrap" id="inhalt">
+    <a class="back-link" href="index.html">← Zurück zu SoundFork</a>
+    <p class="eyebrow">Transparent erklärt</p>
+    <h1>Datenschutz.</h1>
+    <p class="legal-intro">Hier erfährst du, welche Daten die Android-App SoundFork und diese Website verarbeiten – und zu welchem Zweck.</p>
+    <p class="legal-date">Stand: 30. Oktober 2026 · Gilt für SoundFork 1.0</p>
+    <aside class="draft-note" aria-label="Hinweis zum Entwurf"><strong>Entwurf vor Veröffentlichung:</strong> Die Anschrift ist noch zu ergänzen. Die markierten Hosting-Angaben müssen mit den tatsächlichen ALL-INKL-Einstellungen abgeglichen werden.</aside>
+    <nav class="legal-toc" aria-label="Inhalt der Datenschutzerklärung"><a href="#verantwortlich">Kontakt</a><a href="#app">Android-App</a><a href="#website">Website</a><a href="#rechte">Deine Rechte</a></nav>
+
+    <section class="legal-section" id="verantwortlich">
+      <h2>1. Wer verantwortlich ist</h2>
+      <address>Dominic Richter<br><span class="placeholder">[Straße und Hausnummer ergänzen]</span><br><span class="placeholder">[Postleitzahl, Ort und Land ergänzen]</span><br>E-Mail: <a href="mailto:kontakt@twitnic.de">kontakt@twitnic.de</a></address>
+    </section>
+
+    <section class="legal-section" id="app">
+      <h2>2. Daten in der Android-App</h2>
+      <p>SoundFork steuert SoundTouch-Lautsprecher über das lokale Netzwerk. Es gibt kein SoundFork-Benutzerkonto, keinen zentralen SoundFork-Server für deine Hörhistorie und keine eingebundenen Werbe-, Tracking- oder Analyse-SDKs.</p>
+      <h3>Lautsprecher und lokale Speicherung</h3>
+      <p>Für Suche und Steuerung verarbeitet die App unter anderem IP-Adressen bzw. Hostnamen, Ports, Gerätenamen und Gerätekennungen, Quellen und Wiedergabeinformationen. Der Austausch mit dem Lautsprecher erfolgt im lokalen Netzwerk; die SoundTouch-Schnittstelle verwendet dabei auch unverschlüsseltes HTTP.</p>
+      <p>Im privaten App-Speicher bleiben die zuletzt verwendete Geräteadresse, Senderfavoriten mit Namen und Stream-Adressen, die letzten zehn gestarteten Sender und gerätebezogene Wiedergabebestätigungen gespeichert. Diese Daten werden nicht automatisch an den Entwickler gesendet.</p>
+      <p>Die Speicherung dient der erneuten Verbindung und dem Wiederfinden deiner Sender. Der Verlauf wird beim Start weiterer Sender auf zehn Einträge begrenzt. Favoriten lassen sich in der App entfernen; alle lokal gespeicherten App-Daten kannst du über die Android-Einstellungen löschen.</p>
+      <h3>Android-Berechtigungen und Backups</h3>
+      <p>Die App fragt für die Netzwerksuche Berechtigungen für WLAN-Geräte in der Nähe und Standort an. Der aktuelle App-Code fragt keine geografischen Standortkoordinaten ab. Benachrichtigungen und ein Medien-Vordergrunddienst ermöglichen die Wiedergabesteuerung im Hintergrund. Berechtigungen kannst du in Android verwalten.</p>
+      <p>Android-Backups sind in SoundFork zugelassen. Abhängig von Gerät, Backup-Anbieter und deinen Systemeinstellungen können gespeicherte App-Daten gesichert und auf andere Geräte übertragen werden. Backups werden von deinem Systemanbieter verwaltet; eine Löschung der lokalen App-Daten entfernt nicht automatisch bestehende Sicherungen. Weitere Informationen findest du in der <a href="https://developer.android.com/identity/data/autobackup">Android-Dokumentation zu App-Backups</a>.</p>
+    </section>
+
+    <section class="legal-section" id="radio">
+      <h2>3. Online-Sendersuche und Streams</h2>
+      <p>Wenn du eine Sendersuche auslöst, sendet SoundFork deine Suchbegriffe und ausgewählten Filter an einen API-Server des Verzeichnisses Radio Browser. Dabei erhält dieser auch deine öffentliche IP-Adresse und die App-Kennung „SoundFork/1.0 (Android)“. Zur Serverauswahl werden DNS-Anfragen ausgeführt.</p>
+      <p>Beim Start eines Verzeichnissenders wird zusätzlich dessen Verzeichnis-ID an Radio Browser übermittelt, um den Abrufzähler zu aktualisieren. Weitere Informationen zur Schnittstelle: <a href="https://docs.radio-browser.info/">Radio Browser API</a>. Die Speicherung von Anfragen bei den jeweiligen Serverbetreibern wird durch SoundFork nicht gesteuert.</p>
+      <p>Den Audiostream lädt der Lautsprecher direkt beim jeweiligen Sender bzw. Stream-Anbieter. Dieser erfährt dabei insbesondere die öffentliche IP-Adresse des Lautsprecheranschlusses und technische Verbindungsdaten. Für die Verarbeitung durch diese Anbieter gelten deren eigene Datenschutzhinweise. Andere über den Lautsprecher genutzte Musikdienste unterliegen ebenfalls den Bedingungen ihrer Anbieter.</p>
+    </section>
+
+    <section class="legal-section" id="berichte">
+      <h2>4. Freiwillige Diagnoseberichte und E-Mail</h2>
+      <p>Nur wenn du die Berichtsfunktion auswählst, erstellt SoundFork eine Textdatei im App-Cache und übergibt sie an eine E-Mail-App. Empfänger ist vorbelegt mit <a href="mailto:kontakt@twitnic.de">kontakt@twitnic.de</a>. SoundFork verschickt die E-Mail nicht selbst; den Versand bestätigst du in deiner E-Mail-App.</p>
+      <p>Der Bericht kann Gerätenamen, Geräte-IDs, lokale IP-Adressen, Wiedergabeinformationen, Stream-Adressen, Quellenkonten sowie vollständige API-Antworten des Lautsprechers enthalten. Prüfe und entferne gegebenenfalls sensible Angaben vor dem Versand. Cache-Dateien bleiben bis zur Bereinigung durch Android oder bis zum Löschen des App-Caches gespeichert.</p>
+      <p>Wenn du Kontakt aufnimmst oder einen Bericht sendest, werden E-Mail-Adresse, Nachrichteninhalt und gegebenenfalls Anhänge zur Bearbeitung deines Anliegens verarbeitet. Beteiligt sind die genutzten E-Mail-Dienstleister. Nachrichten werden gelöscht, sobald die Bearbeitung abgeschlossen ist und keine gesetzlichen Aufbewahrungspflichten oder konkreten Gründe zur Rechtsverteidigung entgegenstehen.</p>
+    </section>
+
+    <section class="legal-section" id="website">
+      <h2>5. Diese Website und ALL-INKL</h2>
+      <p>Als Hosting-Anbieter ist ALL-INKL.COM – Neue Medien Münnich, Inhaber René Münnich, Hauptstraße 68, 02742 Friedersdorf, Deutschland vorgesehen. Beim Abruf der Website werden technisch notwendige Verbindungsdaten verarbeitet, insbesondere die IP-Adresse, Zeitpunkt, angeforderte Datei, Antwortstatus und gegebenenfalls vom Browser übermittelte Browser- und Referrer-Angaben. Dies ermöglicht die Auslieferung und Absicherung der Website.</p>
+      <p>Die genaue Protokollierung hängt von den Hosting-Einstellungen ab. <span class="placeholder">[Vor Veröffentlichung ergänzen: aktivierte Zugriffs-/Fehlerprotokolle, IP-Kürzung und konkrete Löschfrist laut Hosting-Konfiguration.]</span> Weitere Informationen: <a href="https://all-inkl.com/datenschutzinformationen/">Datenschutzinformationen von ALL-INKL</a>.</p>
+      <p><span class="placeholder">[Vereinbarung zur Auftragsverarbeitung mit ALL-INKL prüfen/abschließen und diesen Hinweis durch die bestätigte Angabe ersetzen.]</span></p>
+      <p>Die Website selbst setzt keine Cookies, nutzt keinen Local Storage und enthält keine Besucheranalyse, extern geladenen Schriftarten, eingebetteten Medien oder Kontaktformulare. Logo und Styles werden vom gleichen Webserver geladen. Externe Links stellen erst beim Öffnen eine Verbindung zur verlinkten Website her.</p>
+    </section>
+
+    <section class="legal-section" id="grundlagen">
+      <h2>6. Zwecke und Rechtsgrundlagen</h2>
+      <p>Soweit die für die von dir angeforderten App-Funktionen nötigen Daten personenbezogen sind und der Verantwortliche sie verarbeitet, erfolgt dies auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Bereitstellung der gewünschten Leistung). Dies betrifft die Verbindung, Steuerung, lokale Senderverwaltung und von dir ausgelöste Online-Suche.</p>
+      <p>Die technische Bereitstellung und Absicherung der Website sowie die Bearbeitung allgemeiner Supportanfragen beruhen auf Art. 6 Abs. 1 lit. f DSGVO. Die berechtigten Interessen sind ein sicherer, zuverlässiger Betrieb und die Beantwortung von Anfragen. Vertragsbezogene Anfragen fallen unter Art. 6 Abs. 1 lit. b DSGVO; gesetzliche Aufbewahrungspflichten unter Art. 6 Abs. 1 lit. c DSGVO.</p>
+      <p>Die Bereitstellung der Daten ist weder gesetzlich vorgeschrieben noch besteht eine Pflicht, Diagnoseberichte zu senden. Ohne die jeweils nötigen Verbindungs- oder Suchdaten kann die entsprechende Funktion nicht ausgeführt werden. SoundFork führt keine automatisierte Entscheidungsfindung oder Profilbildung durch. Eigenständige Verarbeitungen durch Radio Browser, Stream-, E-Mail- und Systemanbieter richten sich nach deren eigenen Rechtsgrundlagen und Datenschutzhinweisen; abhängig vom gewählten Anbieter können dabei auch Daten außerhalb der EU bzw. des EWR verarbeitet werden.</p>
+    </section>
+
+    <section class="legal-section" id="rechte">
+      <h2>7. Deine Rechte</h2>
+      <p>Unter den gesetzlichen Voraussetzungen hast du Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Datenübertragbarkeit. Soweit eine Verarbeitung auf einer Einwilligung beruht, kannst du diese für die Zukunft widerrufen.</p>
+      <p><strong>Widerspruch:</strong> Einer Verarbeitung auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen. Wende dich dazu an <a href="mailto:kontakt@twitnic.de">kontakt@twitnic.de</a>.</p>
+      <p>Du kannst dich außerdem bei einer Datenschutzaufsichtsbehörde beschweren, insbesondere an deinem Wohnort, Arbeitsplatz oder dem Ort des vermuteten Verstoßes. Eine Erläuterung deiner Rechte bietet die <a href="https://www.datenschutz.rlp.de/buergerinnen-/-buerger/ihre-rechte">Datenschutzaufsicht Rheinland-Pfalz</a>.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer wrap"><div><a class="brand footer-brand" href="index.html"><img src="assets/soundfork-logo.svg" alt="" width="28" height="28">SoundFork<span class="brand-dot">.</span></a><p>Ein unabhängiges Projekt von Dominic Richter.</p></div><nav aria-label="Rechtliches"><a href="index.html">Startseite</a><a href="datenschutz.html" aria-current="page">Datenschutz</a><a href="impressum.html">Impressum</a></nav><p class="trademark">SoundFork ist kein offizielles Angebot von Bose. Bose und SoundTouch sind Marken ihrer jeweiligen Rechteinhaber.</p></footer>
+</body>
+</html>
